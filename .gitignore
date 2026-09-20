@@ -1,0 +1,84 @@
+# Node
+.npmrc
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+**/node_modules/
+**/.pnpm-store/
+
+# Build outputs
+**/dist/*
+**/build/*
+*.tsbuildinfo
+**/bin/*
+
+# Environment variables
+.env*
+.env
+.env.*
+!.env.example
+
+# API keys and secrets
+*.key
+secrets.json
+**/config/secrets.json
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.zed
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+**/logs/
+*.log
+loglevel.json
+
+# Coverage
+**/coverage/
+*.lcov
+**/.nyc_output/
+
+# Test artifacts
+test-results/
+test-output/
+results.json
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+*.bak
+
+# Cache directories
+**/.cache/
+**/.npm
+
+# Runtime data
+**/pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Output of 'npm pack'
+*.tgz
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Claude
+.claude/
+
+# Factory
+.factory/
