@@ -1,0 +1,89 @@
+import type { Database } from 'bun:sqlite'
+import { randomUUID } from 'node:crypto'
+import { McpServer } from '@modelcontextprotocol/server'
+import { z } from 'zod/v4'
+import { getActiveProfiles, saveProfile } from './db.ts'
+import type { ProfileRecord, SweepOutcome } from './pipeline/sweep.ts'
+
+export type McpFactoryDeps = {
+  db: Database
+  /** Tenant for this server instance (stdio mode) or request (HTTP per-request factory). */
+  userId: string
+  /** Bound runSweepForTask: executes the sweep and mirrors status onto the task row. */
+  sweepRunner: (profile: ProfileRecord, taskId: string) => Promise<SweepOutcome>
+  taskTtlMs?: number
+}
+
+export const REPORT_URI = 'ui://risk-report/latest'
+
+export function buildMcpServer(deps: McpFactoryDeps): McpServer {
+  const server = new McpServer({ name: 'risk-analysis-server', version: '0.0.1' })
+
+  server.registerTool(
+    'set_risk_profile',
+    {
+      title: 'Set Risk Profile',
+      description:
+        'Create or update a monitored risk profile: a title, the geographic locations to watch, and the policy triggers (events/KPIs) that matter.',
+      inputSchema: z.object({
+        title: z.string().min(1),
+        locations: z.array(z.string()).min(1),
+        triggers: z.array(z.string()),
+      }),
+    },
+    async ({ title, locations, triggers }) => {
+      saveProfile(deps.db, {
+        id: randomUUID(),
+        userId: deps.userId,
+        title,
+        locations,
+        triggers,
+      })
+      return {
+        content: [{ type: 'text', text: `Risk profile "${title}" saved.` }],
+      }
+    },
+  )
+
+  server.registerTool(
+    'trigger_manual_sweep',
+    {
+      title: 'Trigger Manual Sweep',
+      description: 'Run the risk sweep pipeline now for one of your risk profiles.',
+      inputSchema: z.object({ profileId: z.string().min(1) }),
+    },
+    async ({ profileId }) => {
+      const profile = getActiveProfiles(deps.db, deps.userId).find((p) => p.id === profileId)
+      if (!profile) {
+        return {
+          isError: true,
+          content: [{ type: 'text', text: `No active profile ${profileId} for this user.` }],
+        }
+      }
+      const outcome = await deps.sweepRunner(profile, randomUUID())
+      return {
+        content: [{ type: 'text', text: JSON.stringify(outcome) }],
+      }
+    },
+  )
+
+  server.registerResource('risk-report-latest', REPORT_URI, { mimeType: 'text/html' }, async () => {
+    const report = deps.db
+      .query<{ content_html: string }, [string]>(
+        `SELECT content_html FROM risk_reports
+           WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get(deps.userId)
+    return {
+      contents: [
+        {
+          uri: REPORT_URI,
+          mimeType: 'text/html',
+          text: report?.content_html ?? '<html><body><p>No reports yet.</p></body></html>',
+        },
+      ],
+    }
+  })
+
+  return server
+}
