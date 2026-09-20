@@ -87,3 +87,73 @@ export function updateSourceUtility(db: Database, userId: string, deltas: Utilit
   })
   apply.immediate(deltas)
 }
+
+export type SweepTaskInput = {
+  taskId: string
+  userId: string
+  profileId: string
+  ttlMs: number
+}
+
+export type SweepTaskRow = {
+  task_id: string
+  user_id: string
+  profile_id: string
+  status: string
+  status_message: string | null
+  result_json: string | null
+  error_json: string | null
+  created_at: number
+  updated_at: number
+  ttl_at: number
+}
+
+/** MCP Tasks durability: the row is committed before callers may respond with a task handle. */
+export function createSweepTask(db: Database, input: SweepTaskInput): void {
+  const now = Date.now()
+  db.query(
+    `INSERT INTO sweep_tasks
+       (task_id, user_id, profile_id, status, created_at, updated_at, ttl_at)
+     VALUES ($taskId, $userId, $profileId, 'working', $now, $now, $ttlAt)`,
+  ).run({ taskId: input.taskId, userId: input.userId, profileId: input.profileId, now, ttlAt: now + input.ttlMs })
+}
+
+export function getSweepTask(db: Database, taskId: string): SweepTaskRow | null {
+  const row = db
+    .query<SweepTaskRow, [string, number]>(
+      `SELECT * FROM sweep_tasks
+       WHERE task_id = ? AND ttl_at > ?`,
+    )
+    .get(taskId, Date.now())
+  return row ?? null
+}
+
+function transition(db: Database, taskId: string, status: 'completed' | 'failed' | 'cancelled', value?: unknown): void {
+  // Unknown task ids and already-terminal tasks are natural no-ops of the
+  // WHERE clause: cancellation is cooperative, transitions are idempotent.
+  db.query(
+    `UPDATE sweep_tasks
+     SET status = $status,
+         result_json = CASE WHEN $status = 'completed' THEN $payload ELSE result_json END,
+         error_json = CASE WHEN $status = 'failed' THEN $payload ELSE error_json END,
+         updated_at = $now
+     WHERE task_id = $taskId AND status = 'working'`,
+  ).run({
+    status,
+    payload: value === undefined ? null : JSON.stringify(value),
+    now: Date.now(),
+    taskId,
+  })
+}
+
+export function completeSweepTask(db: Database, taskId: string, result: unknown): void {
+  transition(db, taskId, 'completed', result)
+}
+
+export function failSweepTask(db: Database, taskId: string, error: unknown): void {
+  transition(db, taskId, 'failed', error)
+}
+
+export function cancelSweepTask(db: Database, taskId: string): void {
+  transition(db, taskId, 'cancelled')
+}
