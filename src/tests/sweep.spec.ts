@@ -2,8 +2,12 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { jsonSchema } from 'ai'
+import { MockLanguageModelV4 } from 'ai/test'
 import { openDb } from '../db.ts'
-import { type ProfileRecord, runSweep, type SweepOutcome, sweepAllProfiles } from '../pipeline/sweep.ts'
+import { buildSweepDeps, type ProfileRecord, runSweep, type SweepOutcome, sweepAllProfiles } from '../pipeline/sweep.ts'
+import type { SystemOneCaller } from '../services/jev.ts'
+import { createJev } from '../services/jev.ts'
 
 const dirs: string[] = []
 afterAll(() => {
@@ -104,6 +108,112 @@ describe('sweepAllProfiles', () => {
     // surviving profile still persisted its report
     const count = db.query<{ n: number }, []>('SELECT COUNT(*) as n FROM risk_reports').get()
     expect(count?.n).toBe(1)
+    db.close()
+  })
+})
+
+describe('buildSweepDeps', () => {
+  const usage = {
+    inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+    outputTokens: { total: 1, text: 1, reasoning: 0 },
+  }
+  const response = { id: 'mock-1', timestamp: new Date(), modelId: 'mock' }
+  const mockResult = (content: unknown, finishReason: string) =>
+    ({
+      content,
+      finishReason,
+      usage,
+      response,
+      warnings: [],
+    }) as never
+
+  test('end-to-end: highlights triage escalates into the deep dive and persists a report', async () => {
+    const db = openDb(tempDbPath())
+    db.query(
+      `INSERT INTO risk_profiles (id, user_id, title, locations, policy_triggers, updated_at)
+       VALUES ('p1', 'local-user', 'EU port operations', '["Hamburg Port"]', '["strikes"]', $now)`,
+    ).run({ now: Date.now() })
+
+    const tools = {
+      'you-search': {
+        inputSchema: jsonSchema({ type: 'object' }),
+        async execute() {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  results: [{ url: 'https://hamburg.example/news', snippet: 'Hamburg port strike' }],
+                }),
+              },
+            ],
+          }
+        },
+      },
+      'you-contents': {
+        inputSchema: jsonSchema({ type: 'object' }),
+        async execute() {
+          return { content: [{ type: 'text', text: '# Full article' }] }
+        },
+      },
+    }
+    const model = new MockLanguageModelV4({
+      doGenerate: [
+        mockResult(
+          [
+            {
+              type: 'tool-call',
+              toolCallId: 'c1',
+              toolName: 'you-search',
+              input: { query: 'Hamburg Port strike' } as never,
+            },
+          ],
+          'tool-calls' as never,
+        ),
+        mockResult([{ type: 'text', text: 'Searches complete.' }], 'stop' as never),
+        mockResult([{ type: 'text', text: '<p>Briefing</p>' }], 'stop' as never),
+      ],
+    })
+    // Jev: triage noul 0.8 (escalate), relevancy score 2.5, severity choice 'critical'
+    const jev = {
+      systemOne(request: unknown) {
+        const questions = Object.keys((request as { questions: Record<string, unknown> }).questions)
+        const answers = Object.fromEntries(
+          questions.map((key) =>
+            key === 'threat'
+              ? [key, { type: 'noul', noul: 0.8 }]
+              : key === 'severity'
+                ? [key, { type: 'choice', choice: 'critical', confidence: 0.9 }]
+                : [key, { type: 'score', score: 2.5, confidence: 0.8 }],
+          ),
+        )
+        return Promise.resolve({ answers }) as never
+      },
+    } as unknown as SystemOneCaller
+
+    const deps = buildSweepDeps({
+      db,
+      userId: 'local-user',
+      ydcClient: { tools: () => Promise.resolve(tools) } as never,
+      jev: createJev(jev),
+      model: model as never,
+    } as never)
+
+    const outcome = await runSweep(deps, {
+      id: 'p1',
+      userId: 'local-user',
+      title: 'EU port operations',
+      locations: ['Hamburg Port'],
+      triggers: ['strikes'],
+    })
+
+    expect(outcome.escalated).toBe(true)
+    expect(outcome.severity).toBe('critical')
+    const report = db
+      .query<{ severity: string; content_html: string }, []>('SELECT severity, content_html FROM risk_reports')
+      .get()
+    expect(report?.severity).toBe('critical')
+    expect(report?.content_html).toBe('<p>Briefing</p>')
     db.close()
   })
 })

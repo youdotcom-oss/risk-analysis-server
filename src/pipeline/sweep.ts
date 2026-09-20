@@ -1,16 +1,23 @@
 import type { Database } from 'bun:sqlite'
 import { randomUUID } from 'node:crypto'
-import type { RiskProfile } from '../services/jev.ts'
+import type { MCPClient } from '@ai-sdk/mcp'
+import { completeSweepTask, failSweepTask } from '../db.ts'
+import { triageThreat } from '../services/jev.ts'
+import type { DeepDiveDeps } from './deep-dive.ts'
+import { deepDive, fallbackQuery } from './deep-dive.ts'
+
+export type ProfileRecord = {
+  id: string
+  userId: string
+  title: string
+  locations: string[]
+  triggers: string[]
+}
 
 export type SweepOutcome = {
   escalated: boolean
   severity?: string
   reportId?: string
-}
-
-export type ProfileRecord = RiskProfile & {
-  id: string
-  userId: string
 }
 
 export type SweepDeps = {
@@ -21,6 +28,44 @@ export type SweepDeps = {
 }
 
 const TRIAGE_THRESHOLD = 0.5
+
+/** Stage 1 surface-sweep query: the deterministic template from the deep-dive module. */
+async function fetchHighlights(client: Pick<MCPClient, 'tools'>, profile: ProfileRecord): Promise<string[]> {
+  const tools = await client.tools()
+  const search = tools['you-search']
+  if (!search) throw new Error('you-search tool not exposed by the You.com MCP server')
+  const output = await search.execute(
+    { query: fallbackQuery(profile), extraction: 'highlights' },
+    undefined as unknown as Parameters<typeof search.execute>[1],
+  )
+  const text =
+    (output as { content?: { type: string; text?: string }[] }).content
+      ?.filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n') ?? ''
+  try {
+    const parsed = JSON.parse(text) as { results?: { snippet?: string }[] }
+    return (parsed.results ?? []).map((item) => item.snippet ?? '').filter((snippet) => snippet !== '')
+  } catch {
+    return text === '' ? [] : [text]
+  }
+}
+
+export type BuildSweepDepsArgs = DeepDiveDeps & {
+  db: Database
+  ydcClient: Pick<MCPClient, 'tools'>
+}
+
+/** Compose the real SweepDeps: Stage 1 highlight triage + the full deep dive. */
+export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
+  return {
+    db: args.db,
+    fetchHighlights: (profile) => fetchHighlights(args.ydcClient, profile),
+    triage: (profile, highlights) => triageThreat(args.jev, profile, highlights),
+    deepDive: (profile) =>
+      deepDive({ model: args.model, client: args.ydcClient, jev: args.jev, db: args.db, userId: args.userId }, profile),
+  }
+}
 
 /**
  * Stage 1→4 orchestration for one profile. Below the triage threshold the
@@ -83,4 +128,26 @@ function chunk<T>(items: T[], size: number): T[][] {
   const batches: T[][] = []
   for (let i = 0; i < items.length; i += size) batches.push(items.slice(i, i + size))
   return batches
+}
+
+/**
+ * Task-connected sweep: run the orchestration and mirror its outcome onto
+ * the durably-created sweep_tasks row (MCP Tasks contract). The error is
+ * re-thrown so the MCP layer can respond with the JSON-RPC failure.
+ */
+export async function runSweepForTask(
+  db: Database,
+  deps: SweepDeps,
+  profile: ProfileRecord,
+  taskId: string,
+): Promise<SweepOutcome> {
+  try {
+    const outcome = await runSweep(deps, profile)
+    completeSweepTask(db, taskId, outcome)
+    return outcome
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    failSweepTask(db, taskId, { code: -32000, message })
+    throw error
+  }
 }
