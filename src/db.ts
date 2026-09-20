@@ -88,6 +88,64 @@ export function updateSourceUtility(db: Database, userId: string, deltas: Utilit
   apply.immediate(deltas)
 }
 
+export type ProfileRecordRow = {
+  id: string
+  userId: string
+  title: string
+  locations: string[]
+  triggers: string[]
+  isActive: boolean
+}
+
+export function saveProfile(db: Database, profile: Omit<ProfileRecordRow, 'isActive'>): void {
+  db.query(
+    `INSERT INTO risk_profiles
+       (id, user_id, title, locations, policy_triggers, is_active, updated_at)
+     VALUES ($id, $userId, $title, $locations, $triggers, 1, $now)
+     ON CONFLICT(id) DO UPDATE SET
+       user_id = $userId,
+       title = $title,
+       locations = $locations,
+       policy_triggers = $triggers,
+       is_active = 1,
+       updated_at = $now`,
+  ).run({
+    id: profile.id,
+    userId: profile.userId,
+    title: profile.title,
+    locations: JSON.stringify(profile.locations),
+    triggers: JSON.stringify(profile.triggers),
+    now: Date.now(),
+  })
+}
+
+export function getActiveProfiles(db: Database, userId: string): ProfileRecordRow[] {
+  return db
+    .query<
+      {
+        id: string
+        user_id: string
+        title: string
+        locations: string
+        policy_triggers: string
+        is_active: number
+      },
+      [string]
+    >(
+      `SELECT id, user_id, title, locations, policy_triggers, is_active
+       FROM risk_profiles WHERE user_id = ? AND is_active = 1 ORDER BY title`,
+    )
+    .all(userId)
+    .map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      title: row.title,
+      locations: JSON.parse(row.locations) as string[],
+      triggers: JSON.parse(row.policy_triggers) as string[],
+      isActive: row.is_active === 1,
+    }))
+}
+
 export type SweepTaskInput = {
   taskId: string
   userId: string
