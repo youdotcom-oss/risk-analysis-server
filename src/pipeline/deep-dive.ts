@@ -1,7 +1,10 @@
 import type { Database } from 'bun:sqlite'
 import type { MCPClient } from '@ai-sdk/mcp'
+import { choice } from '@typesafe-ai/sdk'
+import { generateText, stepCountIs, type ToolSet } from 'ai'
 import { updateSourceUtility } from '../db.ts'
 import { type Jev, type RiskProfile, scoreResults } from '../services/jev.ts'
+import { createDeepDiveTools } from '../services/you.ts'
 
 export type QueryToolCallStep = {
   content: { type: string; toolName?: string; input?: unknown }[]
@@ -40,6 +43,15 @@ export type RetrieveDeps = {
   client: Pick<MCPClient, 'tools'>
   jev: Jev
   db: Database
+  userId: string
+}
+
+export type DeepDiveDeps = RetrieveDeps & {
+  model: Parameters<typeof generateText>[0]['model']
+}
+
+export type ProfileRecordLike = RiskProfile & {
+  id: string
   userId: string
 }
 
@@ -110,4 +122,94 @@ export async function retrieveAndScore(deps: RetrieveDeps, queries: string[]): P
     snippet: results.find((r) => r.url === item.url)?.snippet ?? '',
     score: item.score,
   }))
+}
+
+const PROPOSAL_PROMPT = (profile: RiskProfile) =>
+  `You are investigating supply-chain risk for "${profile.title}". ` +
+  `Locations: ${profile.locations.join(', ')}. Policy triggers: ${profile.triggers.join(', ')}. ` +
+  'Search for concrete disruptions at these locations. Prefer precise geospatial queries.'
+
+const MAX_PROPOSAL_STEPS = 5
+const MAX_CONTENT_URLS = 10
+
+/** Stage 2: run the agentic proposal loop with Jev-gated search tools. */
+async function proposeQueries(deps: DeepDiveDeps, profile: RiskProfile): Promise<string[]> {
+  const tools = (await createDeepDiveTools({ client: deps.client, jev: deps.jev, profile })) as ToolSet
+  const result = await generateText({
+    model: deps.model,
+    tools,
+    stopWhen: stepCountIs(MAX_PROPOSAL_STEPS),
+    prompt: PROPOSAL_PROMPT(profile),
+  })
+  const queries = collectQueries(result.steps)
+  return queries.length > 0 ? queries : [fallbackQuery(profile)]
+}
+
+/** Stage 3b: code-invoked you-contents for the top-ranked URLs. */
+async function fetchContents(deps: RetrieveDeps, urls: string[]): Promise<string> {
+  if (urls.length === 0) return ''
+  const tools = await deps.client.tools()
+  const contents = tools['you-contents']
+  if (!contents) throw new Error('you-contents tool not exposed by the You.com MCP server')
+  const output = await contents.execute(
+    { urls: urls.slice(0, MAX_CONTENT_URLS) },
+    undefined as unknown as Parameters<typeof contents.execute>[1],
+  )
+  const blocks = (output as { content?: { type: string; text?: string }[] }).content ?? []
+  return blocks
+    .filter((block) => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n\n')
+}
+
+const SEVERITY_LEVELS = {
+  low: 'No material disruption expected; routine monitoring suffices',
+  medium: 'Notable disruption risk; mitigation planning recommended',
+  critical: 'Active disruption at a profile location; immediate action needed',
+}
+
+/** Gate 3b: severity of the situation as a Jev choice over the scored results. */
+async function assessSeverity(jev: Jev, profile: RiskProfile, scored: ScoredResult[]): Promise<string> {
+  const result = await jev.systemOne({
+    state: { profile, results: scored },
+    questions: {
+      severity: choice(
+        'Given the scored evidence, how severe is the current supply-chain situation for the profile?',
+        SEVERITY_LEVELS,
+      ),
+    },
+  })
+  const answer = result.answers.severity as { choice: string }
+  if (!(answer.choice in SEVERITY_LEVELS)) throw new Error(`Invalid severity: ${answer.choice}`)
+  return answer.choice
+}
+
+/**
+ * Stages 2–4 for one profile: agentic proposal loop (Jev-gated searches),
+ * retrieval + scoring, contents fetch, synthesis to self-contained HTML,
+ * and severity via Jev choice.
+ */
+export async function deepDive(
+  deps: DeepDiveDeps,
+  profile: ProfileRecordLike,
+): Promise<{ severity: string; contentHtml: string }> {
+  const queries = await proposeQueries(deps, profile)
+  const scored = await retrieveAndScore(deps, queries)
+  const contents = await fetchContents(
+    deps,
+    scored.map((item) => item.url),
+  )
+  const [severity, synthesis] = await Promise.all([
+    assessSeverity(deps.jev, profile, scored),
+    generateText({
+      model: deps.model,
+      system:
+        'You write concise executive supply-chain briefings. ' +
+        'Return ONLY a self-contained HTML fragment (inline CSS) for the briefing.',
+      prompt:
+        `Profile: ${profile.title}. Locations: ${profile.locations.join(', ')}.\n` +
+        `Scored findings: ${JSON.stringify(scored)}\nFull article contents:\n${contents}`,
+    }),
+  ])
+  return { severity, contentHtml: synthesis.text }
 }

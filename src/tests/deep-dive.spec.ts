@@ -1,16 +1,16 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { jsonSchema } from 'ai'
+import { MockLanguageModelV4 } from 'ai/test'
 import { openDb } from '../db.ts'
-import { collectQueries, fallbackQuery, retrieveAndScore } from '../pipeline/deep-dive.ts'
+import { collectQueries, deepDive, fallbackQuery, retrieveAndScore } from '../pipeline/deep-dive.ts'
 import type { ProfileRecord } from '../pipeline/sweep.ts'
 import type { SystemOneCaller } from '../services/jev.ts'
 import { createJev } from '../services/jev.ts'
 
 const dirs: string[] = []
-
-import { afterAll } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 afterAll(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
@@ -79,7 +79,7 @@ describe('retrieveAndScore', () => {
     const searchCalls: { query: string }[] = []
     const tools = {
       'you-search': {
-        inputSchema: { jsonSchema: { type: 'object' } },
+        inputSchema: jsonSchema({ type: 'object' }),
         async execute(input: { query: string }) {
           searchCalls.push({ query: input.query })
           const shared = {
@@ -138,6 +138,175 @@ describe('retrieveAndScore', () => {
       .query<{ score: number }, [string]>('SELECT score FROM source_utility WHERE domain = ?')
       .get('shared.example')
     expect(row?.score).toBeCloseTo(2.5, 5)
+    db.close()
+  })
+})
+
+describe('deepDive', () => {
+  function stubContentTools() {
+    const contentsCalls: { urls: string[] }[] = []
+    const tools = {
+      'you-search': {
+        inputSchema: jsonSchema({ type: 'object' }),
+        async execute() {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  results: [{ url: 'https://hamburg.example/news', snippet: 'Hamburg port strike halts ferries' }],
+                }),
+              },
+            ],
+          }
+        },
+      },
+      'you-contents': {
+        inputSchema: jsonSchema({ type: 'object' }),
+        async execute(input: { urls: string[] }) {
+          contentsCalls.push({ urls: input.urls })
+          return { content: [{ type: 'text', text: `# Article\n\nFull markdown for ${input.urls.join(', ')}` }] }
+        },
+      },
+    }
+    return { tools, contentsCalls }
+  }
+
+  function jevForDeepDive(relevancyScore: number) {
+    return {
+      systemOne(request: unknown) {
+        const questions = (request as { questions: Record<string, unknown> }).questions
+        const answers: Record<string, unknown> = {}
+        for (const key of Object.keys(questions)) {
+          answers[key] =
+            key === 'severity'
+              ? { type: 'choice', choice: 'critical', confidence: 0.9 }
+              : { type: 'score', score: relevancyScore, confidence: 0.8 }
+        }
+        return Promise.resolve({ answers }) as never
+      },
+    } as unknown as SystemOneCaller
+  }
+
+  const usage = {
+    inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+    outputTokens: { total: 1, text: 1, reasoning: 0 },
+  }
+  const response = { id: 'mock-1', timestamp: new Date(), modelId: 'mock' }
+
+  test('runs the full pipeline: proposal loop, retrieval, scoring, contents, synthesis', async () => {
+    const { tools, contentsCalls } = stubContentTools()
+    const db = openDb(tempDbPath())
+    const model = new MockLanguageModelV4({
+      doGenerate: [
+        {
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: 'c1',
+              toolName: 'you-search',
+              input: { query: 'Hamburg Port strike' } as never,
+            },
+          ],
+          finishReason: 'tool-calls' as never,
+          usage,
+          response,
+          warnings: [],
+        },
+        {
+          // wrap-up step of the proposal loop (loop ends here: 'stop')
+          content: [{ type: 'text', text: 'Searches complete.' }],
+          finishReason: 'stop' as never,
+          usage,
+          response,
+          warnings: [],
+        },
+        {
+          // separate synthesis generateText call
+          content: [{ type: 'text', text: '<p>Executive briefing</p>' }],
+          finishReason: 'stop' as never,
+          usage,
+          response,
+          warnings: [],
+        },
+      ],
+    })
+
+    const result = await deepDive(
+      {
+        model: model as never,
+        client: { tools: () => Promise.resolve(tools) } as never,
+        jev: createJev(jevForDeepDive(2.5)),
+        db,
+        userId: 'local-user',
+      },
+      {
+        id: 'p1',
+        userId: 'local-user',
+        title: 'EU port operations',
+        locations: ['Hamburg Port'],
+        triggers: ['strike action'],
+      },
+    )
+
+    expect(result.severity).toBe('critical')
+    expect(result.contentHtml).toBe('<p>Executive briefing</p>')
+    // contents fetched for the scored result's URL
+    expect(contentsCalls).toEqual([{ urls: ['https://hamburg.example/news'] }])
+    // utility persisted
+    const row = db
+      .query<{ score: number }, [string]>('SELECT score FROM source_utility WHERE domain = ?')
+      .get('hamburg.example')
+    expect(row?.score).toBeCloseTo(2.5, 5)
+    db.close()
+  })
+
+  test('injects the fallback template when the loop yields no queries', async () => {
+    const { tools } = stubContentTools()
+    const searchInputs: { query?: unknown }[] = []
+    const wrappedTools = {
+      ...tools,
+      'you-search': {
+        ...tools['you-search'],
+        async execute(input: { query?: unknown }) {
+          searchInputs.push(input)
+          return { content: [{ type: 'text', text: '{"results": []}' }] }
+        },
+      },
+    }
+    const db = openDb(tempDbPath())
+    const model = new MockLanguageModelV4({
+      doGenerate: [
+        {
+          content: [{ type: 'text', text: 'no searches needed' }],
+          finishReason: 'stop' as never,
+          usage,
+          response,
+          warnings: [],
+        },
+        {
+          content: [{ type: 'text', text: '<p>nothing found</p>' }],
+          finishReason: 'stop' as never,
+          usage,
+          response,
+          warnings: [],
+        },
+      ],
+    })
+
+    const result = await deepDive(
+      {
+        model: model as never,
+        client: { tools: () => Promise.resolve(wrappedTools) } as never,
+        jev: createJev(jevForDeepDive(1)),
+        db,
+        userId: 'local-user',
+      },
+      { id: 'p1', userId: 'local-user', title: 'EU ports', locations: ['Hamburg Port'], triggers: ['strikes'] },
+    )
+
+    expect(searchInputs[0]?.query).toBe('"Hamburg Port" AND ("supply chain" OR "disruption" OR "hazard" OR "strike")')
+    expect(result.contentHtml).toBe('<p>nothing found</p>')
     db.close()
   })
 })
