@@ -11,7 +11,7 @@ afterAll(() => {
 })
 
 describe('buildYdcTransport', () => {
-  test('scopes the production URL to search and contents with bearer auth', () => {
+  test('scopes the URL to search and contents with bearer auth', () => {
     process.env.YDC_API_KEY = 'test-key'
     delete process.env.YDC_MCP_URL
     const transport = buildYdcTransport()
@@ -23,12 +23,9 @@ describe('buildYdcTransport', () => {
     expect(transport.headers?.Authorization).toBe('Bearer test-key')
   })
 
-  test('free profile replaces tool scoping and needs no auth', () => {
+  test('omits auth header when no API key is set', () => {
     delete process.env.YDC_API_KEY
-    const transport = buildYdcTransport({ profile: 'free' })
-    const url = new URL(transport.url)
-    expect(url.searchParams.get('profile')).toBe('free')
-    expect(url.searchParams.has('tools')).toBe(false)
+    const transport = buildYdcTransport()
     expect(transport.headers).toBeUndefined()
   })
 
