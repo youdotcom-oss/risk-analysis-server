@@ -1,50 +1,48 @@
 # Agent Instructions
 
-This repo packages You.com risk analysis server package. Keep changes small, verified, and tied to the requested surface.
+This repo packages You.com risk analysis MCP server. Keep changes small, verified, and tied to the requested surface. Read existing code before editing.
 
-## Tooling discovery
+## Tooling
 
-- Prefer Bun for TypeScript, scripts, orchestration, and running checks. Use Bun to trigger Python and TypeScript tooling unless an existing script says otherwise.
-- Bun MCP docs: https://bun.com/docs/mcp
-- Before choosing commands, scan `package.json` scripts and `biome.json`. Do not guess command names.
-- Checks currently flow through Bun: `bun test`, `bun run check`, `bun run check:types`, `bun run check:ts`, `bun run check:package`.
+- Use Bun for TypeScript, scripts, orchestration, and running checks.
+- Don't guess command names — check `package.json` scripts first. Current checks:
+  `bun test`, `bun run check`, `bun run check:types`, `bun run check:biome`, `bun run check:write`.
 
 ## Minimal-implementation directive
 
 Before writing code, resolve the task at the FIRST step that holds:
 
-1. Does this capability need to exist for the stated task? If it is speculative, do not build it. Say so in one sentence and stop.
-2. Does something already in THIS codebase do it? Reuse it. Read before you write; re-implementing a helper that lives three files over is the most common waste.
-3. Does the standard library or the runtime/platform already do it? (`<input type="date">`, a DB unique constraint, a CSS rule.) Use it.
-4. Does an already-installed dependency do it? Use it. Do not add a new dependency for something a few lines cover.
-5. Can it be one clear expression? Write the one expression.
+1. Does this capability need to exist for the stated task? If speculative, say so in one sentence and stop.
+2. Does something already in this codebase do it? Reuse it.
+3. Does the standard library or the runtime already do it? Use it.
+4. Does an already-installed dependency do it? Use it; don't add a dependency for what a few lines cover.
+5. Can it be one clear expression? Write it.
 6. Otherwise: the smallest code that fully handles the task.
 
-NON-NEGOTIABLE FLOOR: none of the steps above may remove any of these, and "minimal" is never a reason to drop them:
+NON-NEGOTIABLE FLOOR: "minimal" never removes input validation at trust boundaries (anything crossing a process, network, file, or user edge), error handling that prevents data loss or silent corruption, authn/authz or other security checks, or accessibility for anything a human interacts with. If a step requires cutting one of these, that step does not apply.
 
-- input validation at trust boundaries (anything crossing a process, network, file, or user edge),
-- error handling that prevents data loss or silent corruption,
-- authn/authz and other security checks,
-- accessibility for anything a human interacts with.
+Leave exactly one runnable check behind for any non-trivial logic. Mark deliberate shortcuts with a `MINIMAL:` comment naming the ceiling and the upgrade path.
 
-If a step would require cutting one of these, that step does not apply.
+## Style
 
-Leave exactly one runnable check behind for any non-trivial logic.
-Mark deliberate shortcuts with a `MINIMAL:` comment naming the ceiling and the upgrade path, so "later" is greppable instead of forgotten.
+TypeScript, JSON, and Markdown formatting/linting are governed by `biome.json` plus `tsc`. Read those configs before changing style rules; only document conventions the tools don't enforce.
 
-## Style enforcement
+## GitHub CLI
 
-- TypeScript, JSON, and Markdown formatting/linting are governed by `biome.json` plus `tsc`.
-- Read these config files before changing style rules. Keep only conventions not enforced by tools in this file.
+Always use `gh` for GitHub URLs (`gh api`, `gh pr view`, `gh issue view`) — never generic web fetchers.
 
-## Workflow
+## Git commits
 
-- Read existing code before editing. Prefer `Read`, `Grep`, and `Glob` for exploration.
-- For PR review work, use `gh` when available and check PR comments, reviews, code scanning alerts, and inline comments.
-- Conventional commits only: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`, `ci:`.
+- Conventional commits only: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`, `ci:`. Never `--no-verify`.
+- Wrap commit body lines at 100 chars or less (commitlint enforces this). Prefer `git commit -F /tmp/message.txt` for multi-line messages; use repeated `-m` only for short, pre-checked lines. If commitlint rejects a message, rewrite it with wrapped body lines — don't retry the same shape.
+- If `.git/index.lock` exists, assume an interrupted Git operation: confirm no Git/hook process is running, then `rm -f .git/index.lock` before retrying.
 
-## Verification
+## Validation
 
-- Non-trivial TypeScript/script change: at least `bun test <target>` and `bun run check:types`.
-- Formatting/linting: `bun run check:ts` for Biome, `bun run check:package` for package manifests.
-- Before final handoff after edits, run the smallest relevant checks plus any requested full checks. Report known pre-existing warnings separately.
+Before committing, choose validation by area of effect:
+
+- Minimum gate (bounded change, verified by inspection or path/wording-only edits): `bun run check:types` plus targeted tests for the changed surface. State the scope and why the narrower gate suffices.
+- Broader validation when runtime behavior, tool behavior, schemas/validators, shared infrastructure, or any broad/uncertain surface changes — e.g. `src/stdio.ts` changes run its tests plus shared checks. Area-aware, not "run unrelated tests."
+- Formatting/linting: `bun run check:biome`.
+- `docs:` and `chore:` commits may skip executable validation when they don't change behavior.
+- Before final handoff, run the smallest relevant checks plus any requested full checks; report known pre-existing warnings separately.
