@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDb } from '../db.ts'
-import { runSweep, type SweepOutcome } from '../pipeline/sweep.ts'
+import { type ProfileRecord, runSweep, type SweepOutcome, sweepAllProfiles } from '../pipeline/sweep.ts'
 
 const dirs: string[] = []
 afterAll(() => {
@@ -47,7 +47,7 @@ function makeDeps(overrides: {
         triageCalls.push({ profile, highlights })
         return overrides.threatProbability
       },
-      deepDive: async (profile: unknown) => {
+      deepDive: async (profile: ProfileRecord) => {
         deepDiveCalls.push(profile)
         return overrides.deepDiveResult ?? { severity: 'medium', contentHtml: '<p>brief</p>' }
       },
@@ -78,6 +78,32 @@ describe('runSweep', () => {
       .get()
     expect(row?.severity).toBe('critical')
     expect(row?.content_html).toBe('<p>bad</p>')
+    db.close()
+  })
+})
+
+describe('sweepAllProfiles', () => {
+  test('isolates per-profile failures so one crash never stops the batch', async () => {
+    const { deps, db } = makeDeps({ threatProbability: 0.8 })
+    const failing = { ...profile, id: 'p-bad', title: 'Broken profile' }
+    db.query(
+      `INSERT INTO risk_profiles (id, user_id, title, locations, policy_triggers, updated_at)
+       VALUES ('p-bad', 'local-user', 'Broken profile', '["X"]', '["y"]', $now)`,
+    ).run({ now: Date.now() })
+    const originalDeepDive = deps.deepDive
+    deps.deepDive = async (p: ProfileRecord) => {
+      if (p.id === 'p-bad') throw new Error('synthesizer down')
+      return originalDeepDive(p)
+    }
+
+    const results = await sweepAllProfiles(deps, [profile, failing])
+    expect(results).toEqual([
+      { profileId: 'p1', outcome: { escalated: true, severity: 'medium', reportId: expect.any(String) } },
+      { profileId: 'p-bad', error: 'synthesizer down' },
+    ])
+    // surviving profile still persisted its report
+    const count = db.query<{ n: number }, []>('SELECT COUNT(*) as n FROM risk_reports').get()
+    expect(count?.n).toBe(1)
     db.close()
   })
 })
