@@ -2,6 +2,15 @@
 
 This repo packages You.com risk analysis MCP server. Keep changes small, verified, and tied to the requested surface. Read existing code before editing.
 
+## External service docs (source of truth)
+
+- TypeSafe AI / Jev (used by `src/services/jev.ts`): start at https://docs.typesafe.ai/llms.txt —
+  read the [JavaScript SDK](https://docs.typesafe.ai/sdk/javascript.md) and the relevant
+  primitive pages (`noul`, `choice`, `score`) before changing gate logic.
+- You.com MCP server: https://you.com/docs/build-with-agents/mcp-server.md (tools, scoping,
+  free profile).
+- MCP SDK v2 serving (Hono): https://ts.sdk.modelcontextprotocol.io/v2/serving/hono.html
+
 ## Tooling
 
 - Use Bun for TypeScript, scripts, orchestration, and running checks.

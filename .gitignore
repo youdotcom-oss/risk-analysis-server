@@ -77,10 +77,9 @@ temp/
 # TypeScript cache
 *.tsbuildinfo
 
-# Claude
+# Agents
 .claude/
-
-# Factory
 .factory/
+.agents/
 
 plan.md
