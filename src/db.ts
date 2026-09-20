@@ -65,3 +65,25 @@ export function openDb(path: string): Database {
   ).run({ now: Date.now() })
   return db
 }
+
+export type UtilityDelta = {
+  domain: string
+  delta: number
+}
+
+/** Apply Jev Gate 3 domain-utility deltas atomically; scores clamp at zero. */
+export function updateSourceUtility(db: Database, userId: string, deltas: UtilityDelta[]): void {
+  const upsert = db.query(
+    `INSERT INTO source_utility (user_id, domain, score, last_updated)
+     VALUES ($userId, $domain, MAX(0, $score), $now)
+     ON CONFLICT(user_id, domain) DO UPDATE SET
+       score = MAX(0, source_utility.score + $delta),
+       last_updated = $now`,
+  )
+  const apply = db.transaction((entries: UtilityDelta[]) => {
+    for (const { domain, delta } of entries) {
+      upsert.run({ userId, domain, delta, score: 1.0 + delta, now: Date.now() })
+    }
+  })
+  apply.immediate(deltas)
+}
