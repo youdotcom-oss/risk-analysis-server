@@ -51,7 +51,7 @@ async function fetchHighlights(client: Pick<MCPClient, 'tools'>, profile: Profil
   }
 }
 
-export type BuildSweepDepsArgs = DeepDiveDeps & {
+export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client'> & {
   db: Database
   ydcClient: Pick<MCPClient, 'tools'>
 }
