@@ -72,14 +72,25 @@ function makeDeps(overrides: {
 }
 
 describe('runSweep', () => {
-  test('below threshold: exits after triage without escalating', async () => {
-    const { deps, triageCalls, deepDiveCalls } = makeDeps({
+  test('below threshold: no deep dive, but persists a low-severity inaction report', async () => {
+    const { deps, triageCalls, deepDiveCalls, db } = makeDeps({
       threatProbability: 0.3,
     })
     const outcome: SweepOutcome = await runSweep(deps, profile)
     expect(outcome.escalated).toBe(false)
     expect(triageCalls).toHaveLength(1)
     expect(deepDiveCalls).toHaveLength(0)
+    expect(outcome.severity).toBe('low')
+    expect(outcome.reportId).toBeTruthy()
+    const report = db
+      .query<{ content_html: string; severity: string; profile_id: string }, [string]>(
+        'SELECT content_html, severity, profile_id FROM risk_reports WHERE id = ?',
+      )
+      .get(outcome.reportId!)
+    expect(report?.severity).toBe('low')
+    expect(report?.profile_id).toBe(profile.id)
+    expect(report?.content_html).toContain('No action required')
+    expect(report?.content_html).toContain('## Signals reviewed')
   })
 
   test('above threshold: escalates, persists report, and returns severity', async () => {

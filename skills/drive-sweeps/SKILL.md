@@ -29,6 +29,10 @@ The server exposes four tools. Work them in this order.
    knowledgeHits }` (or an error result with the failure reason).
    `knowledgeHits` counts licensed knowledge facts that reached the
    briefing — 0 is a valid result for news-shaped profiles.
+3. **Read the report even when not escalated.** Below-threshold sweeps
+   still persist a low-severity clean-sweep report (signals reviewed,
+   triage score) — a report isn't always for action, sometimes it
+   documents inaction. Summarize it the same way via `get_risk_report`.
 
 Typical duration is 2-3 minutes (agentic search loop + judgment gates +
 cloud-model synthesis). Never assume a timeout means failure — the sweep

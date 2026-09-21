@@ -93,13 +93,48 @@ export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
 
 /**
  * Stage 1→4 orchestration for one profile. Below the triage threshold the
- * sweep exits after Gate 1 — no expensive downstream compute is invoked.
+ * sweep exits after Gate 1 (no expensive downstream compute) but still
+ * persists a low-severity inaction report — a report isn't always for
+ * action; sometimes it documents inaction.
  */
 export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise<SweepOutcome> {
   const highlights = await deps.fetchHighlights(profile)
   const threat = await deps.triage(profile, highlights)
   if (threat < TRIAGE_THRESHOLD) {
-    return { escalated: false }
+    // A report isn't always for action — sometimes it documents inaction:
+    // persist a low-severity clean-sweep record so history stays complete
+    // and clients have something to read. Deterministic, no deep dive.
+    const signals = highlights
+      .slice(0, 3)
+      .map((highlight) => `- ${highlight}`)
+      .join('\n')
+    const reportId = randomUUID()
+    deps.db
+      .query(
+        `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, knowledge_json, created_at)
+         VALUES ($id, $userId, $profileId, 'low', $contentHtml, NULL, $now)`,
+      )
+      .run({
+        id: reportId,
+        userId: profile.userId,
+        profileId: profile.id,
+        contentHtml: [
+          `# ${profile.title} — clean sweep`,
+          '',
+          '## No action required',
+          '',
+          `Triage scored today's news landscape at ${threat.toFixed(2)} ` +
+            `(below the ${TRIAGE_THRESHOLD} escalation threshold) against this profile's ` +
+            'policy triggers. No briefing was generated.',
+          '',
+          '## Signals reviewed',
+          '',
+          signals,
+          '',
+        ].join('\n'),
+        now: Date.now(),
+      })
+    return { escalated: false, severity: 'low', reportId, knowledgeHits: 0 }
   }
   const report = await deps.deepDive(profile)
   const reportId = randomUUID()
