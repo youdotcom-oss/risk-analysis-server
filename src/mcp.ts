@@ -149,7 +149,11 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
           content: [
             {
               type: 'text',
-              text: JSON.stringify({ task_id, status: task.status }),
+              text: JSON.stringify({
+                task_id,
+                status: task.status,
+                next: 'Poll this tool again with task_id every ~20s until completed or failed.',
+              }),
             },
           ],
         }

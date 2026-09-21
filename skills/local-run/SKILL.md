@@ -21,8 +21,13 @@ compatibility: Requires Bun >= 1.2.21, an OPENROUTER_API_KEY (sweep model), YDC_
    respected; override with `RISK_DB_PATH`).
 4. Point an MCP client at it, e.g. Claude Desktop:
    `{ "command": "bunx", "args": ["@youdotcom-oss/risk-analsis-server"], "cwd": "<project path>" }`.
-5. In the client, call `set_risk_profile` once, then `trigger_manual_sweep`
-   with the returned profile id. The briefing lands at `ui://risk-report/latest`.
+5. In the client, call `set_risk_profile` once (returns the profile JSON with
+   its id), then drive `trigger_manual_sweep` with the two-call protocol:
+   start with `profileId` — the tool returns a `task_id` immediately — and
+   poll with `task_id` every ~20s until status is `completed` or `failed`
+   (typical duration 2-3 minutes). Read the briefing via `get_risk_report`;
+   it also lands at `ui://risk-report/latest` for apps-capable hosts. See
+   the `drive-sweeps` skill for the full client protocol.
 
 ## Verify
 
