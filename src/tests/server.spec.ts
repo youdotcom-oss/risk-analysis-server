@@ -92,6 +92,27 @@ describe('createApp', () => {
     db.close()
   })
 
+  test('accepts an injected verifyBearer instead of the HMAC default', async () => {
+    const db = openDb(tempDbPath())
+    const verifyCalls: string[] = []
+    const app = createApp({
+      db,
+      jwtSecret: 'test-secret', // ignored when a verifier is injected
+      verifyBearer: async (req) => {
+        verifyCalls.push(req.headers.get('authorization') ?? '')
+        return req.headers.get('authorization') === 'Bearer custom' ? { sub: 'custom-user' } : null
+      },
+      sweepRunnerFactory: () => async () => ({ escalated: false }),
+    })
+    const res = await mcpRequest(app, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, 'Bearer custom')
+    expect(res.status).toBe(200)
+    expect(verifyCalls).toHaveLength(1)
+    // invalid per the injected verifier
+    const rejected = await mcpRequest(app, { jsonrpc: '2.0', id: 2, method: 'tools/list' }, 'Bearer wrong')
+    expect(rejected.status).toBe(401)
+    db.close()
+  })
+
   test('serves RFC 9728 protected-resource metadata', async () => {
     const { app } = makeApp()
     const res = await app.request('/.well-known/oauth-protected-resource', {

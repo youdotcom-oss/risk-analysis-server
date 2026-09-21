@@ -16,9 +16,17 @@ import {
 import { createJev, TypeSafeClient } from './services/jev.ts'
 import { createYdcClient } from './services/you.ts'
 
+export type BearerVerifier = (req: Request) => Promise<{ sub: string } | null>
+
 export type AppDeps = {
   db: Database
   jwtSecret: string
+  /**
+   * Inject your own bearer verification (OAuth introspection, IdP JWKS, …).
+   * Defaults to HMAC JWT verification against `jwtSecret`. The returned
+   * `sub` is the tenant id and becomes the MCP session's user.
+   */
+  verifyBearer?: BearerVerifier
   /** Binds a sweep runner for a tenant (used by the per-request factory). */
   sweepRunnerFactory: (
     deps: Omit<McpFactoryDeps, 'sweepRunner'>,
@@ -40,7 +48,8 @@ export function createApp(deps: AppDeps): Hono {
   )
 
   app.all('/mcp', async (c: Context) => {
-    const auth = await verifyBearer(c.req.raw, deps.jwtSecret)
+    const verify = deps.verifyBearer ?? ((req: Request) => verifyHmacBearer(req, deps.jwtSecret))
+    const auth = await verify(c.req.raw)
     if (!auth) {
       return c.json({ error: 'unauthorized' }, 401)
     }
@@ -62,7 +71,7 @@ type TokenPayload = {
   sub: string
 }
 
-async function verifyBearer(req: Request, secret: string): Promise<TokenPayload | null> {
+async function verifyHmacBearer(req: Request, secret: string): Promise<TokenPayload | null> {
   const header = req.headers.get('authorization')
   if (!header?.startsWith('Bearer ')) return null
   try {
