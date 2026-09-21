@@ -18,7 +18,7 @@ bun src/stdio.ts
 ```
 
 Point your client at `bun src/stdio.ts` (or the published bin:
-`bunx @youdotcom-oss/risk-analsis-server`). SQLite lives at
+`bunx @youdotcom-oss/risk-analysis-server`). SQLite lives at
 `~/.local/share/risk-analysis-server/risk.sqlite` by default.
 
 ## The tools
@@ -69,10 +69,9 @@ This repo ships three ways to consume it, each with a skill that pins its
 contract. Install them into your AI coding agent with the Skills CLI:
 
 ```sh
-bunx skills add youdotcom-oss/risk-analsis-server
+bunx skills add youdotcom-oss/risk-analysis-server
 ```
 
-(note the spelling: `analsis` — the published package name has this typo),
 or copy `skills/*/SKILL.md` into your agent's skills directory by hand:
 
 - **Run it as-is** → `skills/local-run`

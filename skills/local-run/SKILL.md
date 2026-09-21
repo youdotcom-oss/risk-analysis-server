@@ -9,18 +9,18 @@ compatibility: Requires Bun >= 1.2.21, an OPENROUTER_API_KEY (sweep model), YDC_
 
 ## Steps
 
-1. `bun add @youdotcom-oss/risk-analsis-server`
-   (note the spelling: `analsis` — the published package name has this typo).
+1. `bun add @youdotcom-oss/risk-analysis-server`
+   (note the spelling: `analysis` — the published package name has this typo).
 2. Set the three API keys: `OPENROUTER_API_KEY` (sweep model — required;
    `RISK_MODEL` selects the model, default `qwen/qwen3.8-27b`), `YDC_API_KEY`
    (You.com), and `TYPESAFE_API_KEY` (Jev).
 3. Start the stdio server with the package's bin entry:
-   `bunx @youdotcom-oss/risk-analsis-server` — it seeds a `local-user` tenant
+   `bunx @youdotcom-oss/risk-analysis-server` — it seeds a `local-user` tenant
    and opens the database at
    `~/.local/share/risk-analysis-server/risk.sqlite` (`XDG_DATA_HOME` is
    respected; override with `RISK_DB_PATH`).
 4. Point an MCP client at it, e.g. Claude Desktop:
-   `{ "command": "bunx", "args": ["@youdotcom-oss/risk-analsis-server"], "cwd": "<project path>" }`.
+   `{ "command": "bunx", "args": ["@youdotcom-oss/risk-analysis-server"], "cwd": "<project path>" }`.
 5. In the client, call `set_risk_profile` once (returns the profile JSON with
    its id), then drive `trigger_manual_sweep` with the two-call protocol:
    start with `profileId` — the tool returns a `task_id` immediately — and
@@ -30,7 +30,7 @@ compatibility: Requires Bun >= 1.2.21, an OPENROUTER_API_KEY (sweep model), YDC_
 
 ## Verify
 
-`bunx @youdotcom-oss/risk-analsis-server` responds to an MCP `initialize`
+`bunx @youdotcom-oss/risk-analysis-server` responds to an MCP `initialize`
 request over stdin/stdout — e.g. pipe a JSON-RPC `initialize` message in and
 confirm a `serverInfo` response comes back.
 

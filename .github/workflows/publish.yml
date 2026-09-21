@@ -1,4 +1,4 @@
-name: "Package: publish @youdotcom-oss/risk-analsis-server"
+name: "Package: publish @youdotcom-oss/risk-analysis-server"
 
 on:
   workflow_dispatch:
@@ -89,7 +89,7 @@ jobs:
             IS_PRERELEASE="true"
             VERSION="${base_version}-next.${INPUT_PRERELEASE}"
           elif [[ "$IS_PRERELEASE" == "true" ]]; then
-            PRERELEASE_NUM=$(npm view @youdotcom-oss/risk-analsis-server versions --json 2>/dev/null | jq -r --arg base "${base_version}-next" '[.[] | select(startswith($base))] | last // "0"' | grep -oE '[0-9]+$' || echo "0")
+            PRERELEASE_NUM=$(npm view @youdotcom-oss/risk-analysis-server versions --json 2>/dev/null | jq -r --arg base "${base_version}-next" '[.[] | select(startswith($base))] | last // "0"' | grep -oE '[0-9]+$' || echo "0")
             PRERELEASE_NUM=$((PRERELEASE_NUM + 1))
             VERSION="${base_version}-next.${PRERELEASE_NUM}"
           else

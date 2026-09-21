@@ -6,7 +6,7 @@
   "packages": [
     {
       "registry_type": "npm",
-      "identifier": "@youdotcom-oss/risk-analsis-server",
+      "identifier": "@youdotcom-oss/risk-analysis-server",
       "version": "0.0.1",
       "transport": {
         "type": "stdio"

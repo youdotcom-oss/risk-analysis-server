@@ -10,7 +10,7 @@ compatibility: Requires Bun >= 1.2.21, network access, and your own You.com and 
 The package ships raw TypeScript — a Bun project imports it directly, no build
 step. The entry points are the `exports` subpaths in package.json:
 
-- `@youdotcom-oss/risk-analsis-server/server` — `createApp` (HTTP entry)
+- `@youdotcom-oss/risk-analysis-server/server` — `createApp` (HTTP entry)
 - `.../mcp` — `buildMcpServer` (tools factory)
 - `.../pipeline` — `buildSweepDeps`, `runSweep`, `sweepAllProfiles`
 - `.../db` — `openDb` — `.../model` — `getModel`
@@ -18,12 +18,12 @@ step. The entry points are the `exports` subpaths in package.json:
 
 ## Steps
 
-1. `bun add @youdotcom-oss/risk-analsis-server`
-   (note the spelling: `analsis` — the published name has this typo).
+1. `bun add @youdotcom-oss/risk-analysis-server`
+   (note the spelling: `analysis` — the published name has this typo).
 2. In your own Bun entry point, build the app with your auth:
 
 ```ts
-import { createApp } from '@youdotcom-oss/risk-analsis-server/server'
+import { createApp } from '@youdotcom-oss/risk-analysis-server/server'
 
 const app = createApp({
   db: openDb('risk.sqlite'),
