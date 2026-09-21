@@ -5,6 +5,7 @@ import { generateText, stepCountIs, type ToolSet } from 'ai'
 import { updateSourceUtility } from '../db.ts'
 import { type Jev, type RiskProfile, scoreResults } from '../services/jev.ts'
 import { createDeepDiveTools } from '../services/you.ts'
+import { renderReport } from './report.ts'
 
 export type QueryToolCallStep = {
   content: { type: string; toolName?: string; input?: unknown }[]
@@ -186,8 +187,8 @@ async function assessSeverity(jev: Jev, profile: RiskProfile, scored: ScoredResu
 
 /**
  * Stages 2–4 for one profile: agentic proposal loop (Jev-gated searches),
- * retrieval + scoring, contents fetch, synthesis to self-contained HTML,
- * and severity via Jev choice.
+ * retrieval + scoring, contents fetch, Markdown synthesis, and assembly
+ * into the code-owned report shell (renderReport).
  */
 export async function deepDive(
   deps: DeepDiveDeps,
@@ -205,11 +206,20 @@ export async function deepDive(
       model: deps.model,
       system:
         'You write concise executive supply-chain briefings. ' +
-        'Return ONLY a self-contained HTML fragment (inline CSS) for the briefing.',
+        'Return ONLY GitHub-flavored Markdown with exactly three sections, in order: ' +
+        '"## Summary" (2-3 sentences), "## Key findings" (bulleted, each with a markdown link to its source), ' +
+        '"## Recommended mitigations" (short numbered list). ' +
+        'No other sections, no HTML.',
       prompt:
         `Profile: ${profile.title}. Locations: ${profile.locations.join(', ')}.\n` +
         `Scored findings: ${JSON.stringify(scored)}\nFull article contents:\n${contents}`,
     }),
   ])
-  return { severity, contentHtml: synthesis.text }
+  const contentHtml = renderReport({
+    profile,
+    severity: severity as 'low' | 'medium' | 'critical',
+    markdown: synthesis.text,
+    generatedAt: Date.now(),
+  })
+  return { severity, contentHtml }
 }

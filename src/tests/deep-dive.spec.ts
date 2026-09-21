@@ -142,58 +142,58 @@ describe('retrieveAndScore', () => {
   })
 })
 
-describe('deepDive', () => {
-  function stubContentTools() {
-    const contentsCalls: { urls: string[] }[] = []
-    const tools = {
-      'you-search': {
-        inputSchema: jsonSchema({ type: 'object' }),
-        async execute() {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  results: [{ url: 'https://hamburg.example/news', snippet: 'Hamburg port strike halts ferries' }],
-                }),
-              },
-            ],
-          }
-        },
-      },
-      'you-contents': {
-        inputSchema: jsonSchema({ type: 'object' }),
-        async execute(input: { urls: string[] }) {
-          contentsCalls.push({ urls: input.urls })
-          return { content: [{ type: 'text', text: `# Article\n\nFull markdown for ${input.urls.join(', ')}` }] }
-        },
-      },
-    }
-    return { tools, contentsCalls }
-  }
-
-  function jevForDeepDive(relevancyScore: number) {
-    return {
-      systemOne(request: unknown) {
-        const questions = (request as { questions: Record<string, unknown> }).questions
-        const answers: Record<string, unknown> = {}
-        for (const key of Object.keys(questions)) {
-          answers[key] =
-            key === 'severity'
-              ? { type: 'choice', choice: 'critical', confidence: 0.9 }
-              : { type: 'score', score: relevancyScore, confidence: 0.8 }
+function stubContentTools() {
+  const contentsCalls: { urls: string[] }[] = []
+  const tools = {
+    'you-search': {
+      inputSchema: jsonSchema({ type: 'object' }),
+      async execute() {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                results: [{ url: 'https://hamburg.example/news', snippet: 'Hamburg port strike halts ferries' }],
+              }),
+            },
+          ],
         }
-        return Promise.resolve({ answers }) as never
       },
-    } as unknown as SystemOneCaller
+    },
+    'you-contents': {
+      inputSchema: jsonSchema({ type: 'object' }),
+      async execute(input: { urls: string[] }) {
+        contentsCalls.push({ urls: input.urls })
+        return { content: [{ type: 'text', text: `# Article\n\nFull markdown for ${input.urls.join(', ')}` }] }
+      },
+    },
   }
+  return { tools, contentsCalls }
+}
 
-  const usage = {
-    inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
-    outputTokens: { total: 1, text: 1, reasoning: 0 },
-  }
-  const response = { id: 'mock-1', timestamp: new Date(), modelId: 'mock' }
+function jevForDeepDive(relevancyScore: number) {
+  return {
+    systemOne(request: unknown) {
+      const questions = (request as { questions: Record<string, unknown> }).questions
+      const answers: Record<string, unknown> = {}
+      for (const key of Object.keys(questions)) {
+        answers[key] =
+          key === 'severity'
+            ? { type: 'choice', choice: 'critical', confidence: 0.9 }
+            : { type: 'score', score: relevancyScore, confidence: 0.8 }
+      }
+      return Promise.resolve({ answers }) as never
+    },
+  } as unknown as SystemOneCaller
+}
 
+const usage = {
+  inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+  outputTokens: { total: 1, text: 1, reasoning: 0 },
+}
+const response = { id: 'mock-1', timestamp: new Date(), modelId: 'mock' }
+
+describe('deepDive', () => {
   test('runs the full pipeline: proposal loop, retrieval, scoring, contents, synthesis', async () => {
     const { tools, contentsCalls } = stubContentTools()
     const db = openDb(tempDbPath())
@@ -223,7 +223,7 @@ describe('deepDive', () => {
         },
         {
           // separate synthesis generateText call
-          content: [{ type: 'text', text: '<p>Executive briefing</p>' }],
+          content: [{ type: 'text', text: '## Summary\n\nExecutive briefing.' }],
           finishReason: 'stop' as never,
           usage,
           response,
@@ -250,7 +250,7 @@ describe('deepDive', () => {
     )
 
     expect(result.severity).toBe('critical')
-    expect(result.contentHtml).toBe('<p>Executive briefing</p>')
+    expect(result.contentHtml).toContain('Executive briefing.')
     // contents fetched for the scored result's URL
     expect(contentsCalls).toEqual([{ urls: ['https://hamburg.example/news'] }])
     // utility persisted
@@ -285,7 +285,7 @@ describe('deepDive', () => {
           warnings: [],
         },
         {
-          content: [{ type: 'text', text: '<p>nothing found</p>' }],
+          content: [{ type: 'text', text: '## Summary\n\nNothing found.' }],
           finishReason: 'stop' as never,
           usage,
           response,
@@ -306,7 +306,7 @@ describe('deepDive', () => {
     )
 
     expect(searchInputs[0]?.query).toBe('"Hamburg Port" AND ("supply chain" OR "disruption" OR "hazard" OR "strike")')
-    expect(result.contentHtml).toBe('<p>nothing found</p>')
+    expect(result.contentHtml).toContain('Nothing found.')
     db.close()
   })
 })
