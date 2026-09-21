@@ -1,5 +1,7 @@
 import type { Database } from 'bun:sqlite'
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod/v4'
 import {
@@ -10,7 +12,6 @@ import {
   getSweepTask,
   saveProfile,
 } from './db.ts'
-import bundledView from './generated/view-html.ts'
 import type { ProfileRecord, SweepOutcome } from './pipeline/sweep.ts'
 
 export type McpFactoryDeps = {
@@ -25,6 +26,23 @@ export type McpFactoryDeps = {
 export const REPORT_URI = 'ui://risk-report/latest'
 /** MCP Apps (SEP-1865) resource MIME type — signals "render me in an iframe". */
 export const APP_MIME_TYPE = 'text/html;profile=mcp-app'
+
+/**
+ * Locate the bundled MCP Apps view shell (bin/mcp-app.html from
+ * `bun run build`). Resolved relative to this module so it works both from
+ * the repo (src/) and the published bundle (bin/). Returns null when the
+ * view was never built — callers fall back to stored-report HTML.
+ */
+function readViewShell(): string | null {
+  for (const candidate of [join(import.meta.dir, 'mcp-app.html'), join(import.meta.dir, '..', 'bin', 'mcp-app.html')]) {
+    try {
+      return readFileSync(candidate, 'utf8')
+    } catch {
+      // try the next candidate
+    }
+  }
+  return null
+}
 
 export function buildMcpServer(deps: McpFactoryDeps): McpServer {
   const server = new McpServer({
@@ -245,11 +263,12 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
            WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
       )
       .get(deps.userId)
-    // Serve the bundled MCP Apps shell when available: it handshakes with the
-    // host and pulls the briefing via get_risk_report. When the view is not
-    // bundled (view-html.ts empty), fall back to the stored report HTML so
-    // resource readers still get meaningful content.
-    const text = bundledView || (report?.content_html ?? '<html><body><p>No reports yet.</p></body></html>')
+    // Serve the bundled MCP Apps shell when available (bun run build emits
+    // bin/mcp-app.html): it handshakes with the host and pulls the briefing
+    // via get_risk_report. When the view bundle is absent, fall back to the
+    // stored report HTML so resource readers still get meaningful content.
+    const shell = readViewShell()
+    const text = shell || (report?.content_html ?? '<html><body><p>No reports yet.</p></body></html>')
     return {
       contents: [
         {

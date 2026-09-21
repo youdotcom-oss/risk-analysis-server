@@ -89,3 +89,6 @@ plan.md
 *.sqlite-wal
 *.sqlite-journal
 tmp-defaultdbpath/
+
+# Generated artifacts (view shell embed)
+src/generated/

@@ -1,11 +1,10 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/client'
 import { InMemoryTransport } from '@modelcontextprotocol/server'
 import { getActiveProfiles, openDb } from '../db.ts'
-import bundledView from '../generated/view-html.ts'
 import { buildMcpServer, type McpFactoryDeps } from '../mcp.ts'
 
 const dirs: string[] = []
@@ -219,10 +218,10 @@ describe('buildMcpServer', () => {
     const contents = resource.contents[0]
     expect(contents?.mimeType).toBe('text/html;profile=mcp-app')
     const text = (contents as { text?: string }).text ?? ''
-    if (bundledView) {
-      // Bundled shell: self-contained app that pulls the briefing itself.
-      expect(text).toBe(bundledView)
-      expect(text).toContain('mcp-app')
+    // The bundled shell exists after `bun run build` (../bin/mcp-app.html);
+    // without it the handler falls back to the no-reports placeholder.
+    if (existsSync(join(import.meta.dir, '../../bin/mcp-app.html'))) {
+      expect(text).toContain('Risk Report')
     } else {
       expect(text).toContain('No reports yet.')
     }

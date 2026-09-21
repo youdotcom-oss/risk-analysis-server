@@ -58,12 +58,6 @@
   },
   "overrides": [
     {
-      "includes": ["src/generated/**"],
-      "linter": {
-        "enabled": false
-      }
-    },
-    {
       "includes": ["scripts/**/*.ts", "src/stdio.ts", "src/server.ts"],
       "linter": {
         "rules": {

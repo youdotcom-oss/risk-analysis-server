@@ -38,6 +38,7 @@
   "files": [
     "src",
     "bin/stdio.js",
+    "bin/mcp-app.html",
     "server.json"
   ],
   "publishConfig": {
