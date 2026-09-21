@@ -40,7 +40,9 @@ The tool descriptions carry the protocol (start → poll until
 `completed`/`failed`); expect ~2–3 minutes. Every Stage-3 search runs
 with `knowledge: "core"`: fact-shaped queries (prices, rates, revenues,
 weather) return licensed answers in `results.knowledge` (Fiscal.ai, S&P
-Global, BLS, EIA, AccuWeather) that flow into the briefing; news-shaped
+Global, BLS, EIA, AccuWeather) that flow into the briefing **with
+provenance** — provider attribution and an `as_of` date, so the briefing
+can say what a fact was true as of; news-shaped
 queries simply omit the key. The second prompt is the most likely to
 show knowledge at work — TSMC revenue, electricity price, and interest
 rate are all verified to return licensed results (Fiscal.ai, BLS,
