@@ -16,12 +16,12 @@ describe('getModel', () => {
     expect(() => getModel()).toThrow('OPENROUTER_API_KEY is required')
   })
 
-  test('defaults to meta/muse-glimmer-30b on OpenRouter', () => {
+  test('defaults to qwen/qwen3.8-27b on OpenRouter', () => {
     process.env.OPENROUTER_API_KEY = 'test-key'
     delete process.env.RISK_MODEL
     const model = getModel()
     expect(model.provider).toBe('openrouter')
-    expect(model.modelId).toBe('meta/muse-glimmer-30b')
+    expect(model.modelId).toBe('qwen/qwen3.8-27b')
   })
 
   test('honors RISK_MODEL override', () => {

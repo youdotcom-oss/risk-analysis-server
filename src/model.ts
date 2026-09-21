@@ -9,5 +9,5 @@ export function getModel() {
     throw new Error('OPENROUTER_API_KEY is required for the sweep model')
   }
   const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
-  return openrouter.chat(process.env.RISK_MODEL ?? 'meta/muse-glimmer-30b')
+  return openrouter.chat(process.env.RISK_MODEL ?? 'qwen/qwen3.8-27b')
 }
