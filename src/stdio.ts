@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 import { serveStdio } from '@modelcontextprotocol/server/stdio'
-import { TypeSafeClient } from '@typesafe-ai/sdk'
 import { defaultDbPath, missingKeyWarnings } from './config.ts'
 import { openDb } from './db.ts'
 import { buildMcpServer } from './mcp.ts'
@@ -23,7 +22,7 @@ function sweepDeps(): SweepDeps {
     db,
     userId: 'local-user',
     ydcClient: createYdcClient(),
-    jev: createJev(new TypeSafeClient()),
+    jev: createJev(),
     model: getModel(),
   })
   return cachedSweepDeps

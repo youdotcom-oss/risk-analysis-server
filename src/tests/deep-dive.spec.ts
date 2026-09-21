@@ -209,15 +209,15 @@ describe('retrieveAndScore', () => {
       } as unknown as SystemOneCaller,
       db,
       userId: 'local-user',
-      profile: { id: 'p-real', userId: 'local-user', title: 'Real profile', locations: [], triggers: [] },
+      profile: {
+        id: 'p-real',
+        userId: 'local-user',
+        title: 'Real profile',
+        locations: ['Hamburg Port'],
+        triggers: ['strikes'],
+      },
     }
-    await retrieveAndScore(deps, ['query one'], {
-      id: 'p-real',
-      userId: 'local-user',
-      title: 'Real profile',
-      locations: ['Hamburg Port'],
-      triggers: ['strikes'],
-    })
+    await retrieveAndScore(deps, ['query one'])
     expect(profilesSeen.length).toBeGreaterThan(0)
     for (const profile of profilesSeen) {
       expect(profile).toMatchObject({ title: 'Real profile', id: 'p-real' })
@@ -682,6 +682,26 @@ describe('parseSearchResults knowledge handling', () => {
 })
 
 describe('topScored knowledge guarantee', () => {
+  test('caps knowledge at the limit instead of dropping web results via a negative slice', () => {
+    const web = Array.from({ length: 5 }, (_, i) => ({
+      url: `https://web.example/${i}`,
+      domain: 'web.example',
+      snippet: `web finding ${i}`,
+      score: 3,
+    }))
+    const knowledge = Array.from({ length: 17 }, (_, i) => ({
+      url: '',
+      domain: '',
+      snippet: `fact ${i}`,
+      score: 1,
+    }))
+    const top = topScored([...web, ...knowledge])
+    expect(top).toHaveLength(15)
+    // web results survive (no negative-slice wipeout)
+    expect(top.filter((t) => t.url !== '')).toHaveLength(0)
+    expect(top.filter((t) => t.url === '')).toHaveLength(15)
+  })
+
   test('knowledge facts reach the top even when web results outscore them', async () => {
     // 20 web results scoring 3 ( outranking ) + one knowledge fact scoring 1
     const web = Array.from({ length: 20 }, (_, i) => ({

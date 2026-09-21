@@ -227,6 +227,7 @@ describe('buildMcpServer', () => {
       userId: 'local-user',
       sweepRunner: async () => ({ escalated: false }),
       scheduler: {
+        scope: 'durable',
         apply: (profileId: string, schedule: string | null) => registered.push(`${profileId}:${schedule}`),
         clear: (profileId: string) => registered.push(`${profileId}:cleared`),
       } as never,
@@ -328,6 +329,39 @@ describe('buildMcpServer', () => {
     })
     expect(missing.isError ?? false).toBe(true)
 
+    await client.close()
+    await server.close()
+    db.close()
+  })
+})
+
+describe('set_sweep_schedule without a wired scheduler', () => {
+  test('reports unscheduled scope instead of claiming durable firing', async () => {
+    const db = openDb(tempDbPath())
+    const server = buildMcpServer({
+      db,
+      userId: 'local-user',
+      sweepRunner: async () => ({ escalated: false }),
+    })
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair()
+    const client = new Client({ name: 'test-client', version: '0.0.0' })
+    await server.connect(serverTransport)
+    await client.connect(clientTransport)
+    const saved = await client.callTool({
+      name: 'set_risk_profile',
+      arguments: { title: 'EU ports', locations: ['Hamburg Port'], triggers: [] },
+    })
+    const profileId = (JSON.parse((saved.content as unknown as [{ text: string }])[0].text) as { id: string }).id
+    const result = await client.callTool({
+      name: 'set_sweep_schedule',
+      arguments: { profileId, schedule: '0 9 * * 1' },
+    })
+    const payload = JSON.parse((result.content as unknown as [{ text: string }])[0].text) as {
+      schedulerScope?: string
+      effect?: string
+    }
+    expect(payload.schedulerScope).toBe('unscheduled')
+    expect(payload.effect).toContain('no scheduler is active in this process')
     await client.close()
     await server.close()
     db.close()

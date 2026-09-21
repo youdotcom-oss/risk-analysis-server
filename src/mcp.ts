@@ -278,11 +278,13 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
             text: JSON.stringify({
               profileId,
               schedule: schedule ?? null,
-              schedulerScope: deps.scheduler?.scope ?? 'durable',
+              schedulerScope: deps.scheduler?.scope ?? 'unscheduled',
               effect: schedule
-                ? (deps.scheduler?.scope ?? 'durable') === 'durable'
+                ? (deps.scheduler?.scope ?? 'unscheduled') === 'durable'
                   ? 'Sweep scheduled — the server process is a supervised service, so this cron keeps firing while the machine runs.'
-                  : 'Sweep scheduled — but it fires only while this client is connected. Run the HTTP entry as a local service (see DEPLOY.md) to keep sweeping after you close it.'
+                  : (deps.scheduler?.scope ?? 'unscheduled') === 'session'
+                    ? 'Sweep scheduled — but it fires only while this client is connected. Run the HTTP entry as a local service (see DEPLOY.md) to keep sweeping after you close it.'
+                    : 'Schedule persisted, but no scheduler is active in this process — nothing fires until the server runs with one wired (see skills/import-integration).'
                 : 'Schedule removed.',
             }),
           },

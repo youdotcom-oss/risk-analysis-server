@@ -55,9 +55,9 @@ async function fetchHighlights(client: Pick<MCPClient, 'tools'>, profile: Profil
   // Compact projection: "title — description" per result. The legacy flat
   // shape + raw-text fallback once sent the entire payload to Gate 1
   // (TypeSafe 400 max_tokens_exceeded on live runs).
-  const MINIMAL_HIGHLIGHTS = 40
+  const MAX_HIGHLIGHTS = 40
   return parseSearchResults(text)
-    .slice(0, MINIMAL_HIGHLIGHTS)
+    .slice(0, MAX_HIGHLIGHTS)
     .map((item) => [item.title, item.description].filter((part) => part !== '').join(' — '))
     .filter((highlight) => highlight !== '')
 }

@@ -9,7 +9,7 @@ import { buildMcpServer, type McpFactoryDeps } from './mcp.ts'
 import { getModel } from './model.ts'
 import { buildSweepDeps, type ProfileRecord, runSweep, runSweepForTask, type SweepOutcome } from './pipeline/sweep.ts'
 import { ProfileScheduler } from './scheduler.ts'
-import { createJev, TypeSafeClient } from './services/jev.ts'
+import { createJev } from './services/jev.ts'
 import { createYdcClient } from './services/you.ts'
 
 export type BearerVerifier = (req: Request) => Promise<{ sub: string } | null>
@@ -99,9 +99,6 @@ function getServerApp(): Hono {
   const db = openDb(process.env.RISK_DB_PATH ?? defaultDbPath())
   for (const warning of missingKeyWarnings()) console.warn(warning)
 
-  // One shared You.com MCP client per process, connected lazily on the first
-  // sweep (not per request — a per-request client leaked connections).
-  const ydcClientP = createYdcClient()
   cachedApp = createApp({
     db,
     jwtSecret: secret,
@@ -110,14 +107,14 @@ function getServerApp(): Hono {
         const sweepDeps = buildSweepDeps({
           db: deps.db,
           userId: deps.userId,
-          ydcClient: await ydcClientP,
-          jev: createJev(new TypeSafeClient()),
+          ydcClient: await sharedYdcClient,
+          jev: createJev(),
           model: getModel(),
         })
         return runSweepForTask(deps.db, sweepDeps, profile, taskId)
       }
     },
-    scheduler: _entryScheduler,
+    scheduler: entryScheduler,
   })
   return cachedApp
 }
@@ -128,31 +125,32 @@ function getServerApp(): Hono {
  * never fires on a zero-traffic server. Library imports (tests, consumers)
  * are unaffected: import.meta.main is false there.
  */
+let cachedApp: Hono | undefined
+let entryScheduler: ProfileScheduler | undefined
+
+// One shared You.com MCP client per process (scheduler sweeps + requests):
+// a per-sweep client leaked connections. Connected lazily on first use.
+const sharedYdcClient = createYdcClient()
+
 if (import.meta.main) {
   const entryDb = openDb(process.env.RISK_DB_PATH ?? defaultDbPath())
-  const entryScheduler = new ProfileScheduler(entryDb, {
+  entryScheduler = new ProfileScheduler(entryDb, {
     sweep: async (profile) =>
       runSweep(
         buildSweepDeps({
           db: entryDb,
           // tenant-scoped: source_utility deltas land under the profile's owner
           userId: profile.userId,
-          ydcClient: await createYdcClient(),
-          jev: createJev(new TypeSafeClient()),
+          ydcClient: await sharedYdcClient,
+          jev: createJev(),
           model: getModel(),
         }),
         profile,
       ),
   })
   entryScheduler.applyStored()
-  if (process.env.RISK_CRON_SCHEDULE)
-    entryScheduler.applyGlobal(process.env.RISK_CRON_SCHEDULE)
-    // Expose to getServerApp for live set_sweep_schedule registration
-  ;(globalThis as Record<string, unknown>).__riskEntryScheduler = entryScheduler
+  if (process.env.RISK_CRON_SCHEDULE) entryScheduler.applyGlobal(process.env.RISK_CRON_SCHEDULE)
 }
-
-let cachedApp: Hono | undefined
-const _entryScheduler = (globalThis as Record<string, unknown>).__riskEntryScheduler as ProfileScheduler | undefined
 
 export default {
   fetch: (req: Request) => getServerApp().fetch(req),

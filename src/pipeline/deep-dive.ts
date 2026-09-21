@@ -71,11 +71,7 @@ function domainOf(url: string): string {
  * dedup by URL across queries, Jev relevancy scoring (Gate 3), then
  * domain-utility deltas persisted in one transaction.
  */
-export async function retrieveAndScore(
-  deps: RetrieveDeps,
-  queries: string[],
-  profile?: ProfileRecordLike,
-): Promise<ScoredResult[]> {
+export async function retrieveAndScore(deps: RetrieveDeps, queries: string[]): Promise<ScoredResult[]> {
   const tools = await deps.client.tools()
   const search = tools['you-search']
   if (!search) throw new Error('you-search tool not exposed by the You.com MCP server')
@@ -122,7 +118,9 @@ export async function retrieveAndScore(
     }
   }
 
-  const scored = await scoreResults(deps.jev, profile ?? { title: '', locations: [], triggers: [] }, results)
+  // Gate 3 scores relevancy against the caller-provided profile — the empty
+  // literal was a past bug (a briefing scored against nothing relevant).
+  const scored = await scoreResults(deps.jev, deps.profile, results)
 
   updateSourceUtility(
     deps.db,
@@ -165,10 +163,9 @@ export function topScored(scored: ScoredResult[], limit = MAX_TOP_RESULTS): Scor
   // Knowledge facts (url-less, licensed) always reach synthesis: they arrive
   // last in parse order and score through the same gate as web results, so
   // rank alone buries them. Reserve them a slot; ranked web results fill the rest.
-  const knowledge = scored.filter((item) => item.url === '')
-  const web = [...scored.filter((item) => item.url !== '')]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit - knowledge.length)
+  const knowledge = scored.filter((item) => item.url === '').slice(0, limit)
+  const webSlots = Math.max(0, limit - knowledge.length)
+  const web = [...scored.filter((item) => item.url !== '')].sort((a, b) => b.score - a.score).slice(0, webSlots)
   return [...web, ...knowledge]
 }
 
@@ -252,7 +249,7 @@ export async function deepDive(
   // knowledge providers match fact-shaped triggers ("TSMC revenue latest
   // quarter" -> licensed financials) that the model may not propose.
   const queries = [...new Set([...proposed, ...profile.triggers])]
-  const scored = await retrieveAndScore(deps, queries, profile)
+  const scored = await retrieveAndScore(deps, queries)
   const top = topScored(scored)
   const contents = await fetchContents(
     deps,
