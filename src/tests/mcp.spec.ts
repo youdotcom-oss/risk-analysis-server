@@ -74,6 +74,42 @@ describe('buildMcpServer', () => {
     db.close()
   })
 
+  test('set_sweep_schedule reports session scope when the scheduler is session-bound', async () => {
+    const db = openDb(tempDbPath())
+    const server = buildMcpServer({
+      db,
+      userId: 'local-user',
+      sweepRunner: async () => ({ escalated: false }),
+      scheduler: {
+        apply: () => {},
+        clear: () => {},
+        scope: 'session',
+      } as never,
+    })
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair()
+    const client = new Client({ name: 'test-client', version: '0.0.0' })
+    await server.connect(serverTransport)
+    await client.connect(clientTransport)
+    const saved = await client.callTool({
+      name: 'set_risk_profile',
+      arguments: { title: 'EU ports', locations: ['Hamburg Port'], triggers: [] },
+    })
+    const profileId = (JSON.parse((saved.content as unknown as [{ text: string }])[0].text) as { id: string }).id
+    const result = await client.callTool({
+      name: 'set_sweep_schedule',
+      arguments: { profileId, schedule: '0 9 * * 1' },
+    })
+    const payload = JSON.parse((result.content as unknown as [{ text: string }])[0].text) as {
+      schedulerScope?: string
+      effect?: string
+    }
+    expect(payload.schedulerScope).toBe('session')
+    expect(payload.effect).toContain('only while this client is connected')
+    await client.close()
+    await server.close()
+    db.close()
+  })
+
   test('trigger_manual_sweep: start returns a task handle; poll serves status and result', async () => {
     let releaseSweep: (outcome: { escalated: boolean; severity: string }) => void = () => {}
     const gate = new Promise<{ escalated: boolean; severity: string }>((resolve) => {
@@ -205,12 +241,16 @@ describe('buildMcpServer', () => {
     })
     const profileId = (JSON.parse((saved.content as unknown as [{ text: string }])[0].text) as { id: string }).id
 
-    // set: persists + notifies the scheduler
-    await client.callTool({
+    // set: persists + notifies the scheduler + names the scheduler scope
+    const set1 = await client.callTool({
       name: 'set_sweep_schedule',
       arguments: { profileId, schedule: '0 9 * * 1' },
     })
     expect(registered).toContain(`${profileId}:0 9 * * 1`)
+    const set1Payload = JSON.parse((set1.content as unknown as [{ text: string }])[0].text) as {
+      schedulerScope?: string
+    }
+    expect(set1Payload.schedulerScope).toBe('durable')
 
     // profile listing carries the schedule
     const listed = await client.callTool({ name: 'list_risk_profiles', arguments: {} })

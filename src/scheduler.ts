@@ -36,11 +36,22 @@ export class ProfileScheduler {
   private jobs = new Map<string, CronHandle>()
   private globalHandle: CronHandle | null = null
 
+  /** 'durable' = process runs as a supervised service; 'session' = cron dies
+   *  with the client connection (stdio). Surfaced by set_sweep_schedule. */
+  readonly scope: 'session' | 'durable'
+
   constructor(
     private readonly db: Database,
     private readonly userId: string,
-    private readonly opts: { register?: CronRegistrar; sweep?: SweepFn; ttlMs?: number } = {},
-  ) {}
+    private readonly opts: {
+      register?: CronRegistrar
+      sweep?: SweepFn
+      ttlMs?: number
+      scope?: 'session' | 'durable'
+    } = {},
+  ) {
+    this.scope = opts.scope ?? 'durable'
+  }
 
   private registrar(): CronRegistrar {
     return this.opts.register ?? defaultRegistrar

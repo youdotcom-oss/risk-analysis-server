@@ -28,7 +28,7 @@ export type AppDeps = {
     deps: Omit<McpFactoryDeps, 'sweepRunner'>,
   ) => (profile: ProfileRecord, taskId: string) => Promise<SweepOutcome>
   /** Per-process scheduler; enables live set_sweep_schedule registration. */
-  scheduler?: Pick<ProfileScheduler, 'apply' | 'clear' | 'applyGlobal'>
+  scheduler?: Pick<ProfileScheduler, 'apply' | 'clear' | 'applyGlobal' | 'scope'>
   /**
    * Global cron schedule applied to `scheduler` (all active profiles).
    * Requires `scheduler`; without one this is ignored. Entry processes

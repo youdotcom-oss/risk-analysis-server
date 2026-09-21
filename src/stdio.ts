@@ -30,6 +30,7 @@ function sweepDeps(): SweepDeps {
 }
 
 const scheduler = new ProfileScheduler(db, 'local-user', {
+  scope: 'session',
   sweep: async (profile) => runSweep(sweepDeps(), profile),
 })
 

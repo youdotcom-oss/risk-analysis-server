@@ -26,7 +26,7 @@ export type McpFactoryDeps = {
    * registers/unregisters Bun.cron jobs immediately. Without it, schedule
    * changes persist to the DB and apply on the entry's next start.
    */
-  scheduler?: Pick<ProfileScheduler, 'apply' | 'clear'>
+  scheduler?: Pick<ProfileScheduler, 'apply' | 'clear' | 'scope'>
 }
 
 export function buildMcpServer(deps: McpFactoryDeps): McpServer {
@@ -284,8 +284,11 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
             text: JSON.stringify({
               profileId,
               schedule: schedule ?? null,
+              schedulerScope: deps.scheduler?.scope ?? 'durable',
               effect: schedule
-                ? 'Sweep scheduled — runs on this cron while a server session is alive.'
+                ? (deps.scheduler?.scope ?? 'durable') === 'durable'
+                  ? 'Sweep scheduled — the server process is a supervised service, so this cron keeps firing while the machine runs.'
+                  : 'Sweep scheduled — but it fires only while this client is connected. Run the HTTP entry as a local service (see DEPLOY.md) to keep sweeping after you close it.'
                 : 'Schedule removed.',
             }),
           },
