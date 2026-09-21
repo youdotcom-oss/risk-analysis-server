@@ -1,8 +1,8 @@
 ---
 name: extend
-description: Clone this repo as a base and change its behavior - custom auth, a different model, extra tools, or a different report layout. Use when the built-in defaults (HMAC auth, muse-glimmer, the three-section briefing) don't fit and you want the existing test scaffolding to keep you safe.
+description: Clone this repo as a base and change its behavior - custom auth, a different model, extra tools, or a different report layout. Use when the built-in defaults (HMAC auth, qwen/qwen3.8-27b via OpenRouter, the three-section briefing) don't fit and you want the existing test scaffolding to keep you safe.
 license: MIT
-compatibility: Requires Bun >= 1.2.21, Ollama locally for the default model, and network access for the search and judgment APIs.
+compatibility: Requires Bun >= 1.2.21, an OPENROUTER_API_KEY for the default sweep model, and network access for the search and judgment APIs.
 ---
 
 # Extend the risk-analysis server
@@ -18,6 +18,7 @@ compatibility: Requires Bun >= 1.2.21, Ollama locally for the default model, and
 | Report HTML shell + Markdown rendering | `src/pipeline/report.ts` |
 | You.com access (search/contents tools) | `src/services/you.ts` |
 | Jev gates (triage, query validation, scoring) | `src/services/jev.ts` |
+| Sweep model selection (provider, model id) | `src/model.ts` |
 | Storage schema and task lifecycle | `src/db.ts` |
 
 ## Steps
