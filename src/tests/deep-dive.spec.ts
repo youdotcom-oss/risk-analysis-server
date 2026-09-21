@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { jsonSchema } from 'ai'
 import { MockLanguageModelV4 } from 'ai/test'
 import { openDb } from '../db.ts'
-import { collectQueries, deepDive, fallbackQuery, retrieveAndScore } from '../pipeline/deep-dive.ts'
+import { collectQueries, deepDive, fallbackQuery, retrieveAndScore, topScored } from '../pipeline/deep-dive.ts'
 import type { ProfileRecord } from '../pipeline/sweep.ts'
 import type { SystemOneCaller } from '../services/jev.ts'
 import { createJev } from '../services/jev.ts'
@@ -648,5 +648,28 @@ describe('parseSearchResults knowledge handling', () => {
     expect(knowledge?.description).toContain('$96,221,000,000')
     // web results untouched
     expect(results.find((r) => r.url === 'https://x.example/a')).toBeDefined()
+  })
+})
+
+describe('topScored knowledge guarantee', () => {
+  test('knowledge facts reach the top even when web results outscore them', async () => {
+    // 20 web results scoring 3 ( outranking ) + one knowledge fact scoring 1
+    const web = Array.from({ length: 20 }, (_, i) => ({
+      url: `https://web.example/${i}`,
+      domain: 'web.example',
+      snippet: `web finding ${i}`,
+      score: 3,
+    }))
+    const knowledge: (typeof web)[number] = {
+      url: '',
+      domain: '',
+      snippet: 'TSMC Total Revenues latest value was NT$1,046.09 billion',
+      score: 1,
+    }
+    const top = topScored([...web, knowledge])
+    // web slots take 14, the knowledge fact takes its own slot
+    expect(top.filter((t) => t.url === '')).toHaveLength(1)
+    expect(top.some((t) => t.snippet.includes('TSMC Total Revenues'))).toBe(true)
+    expect(top).toHaveLength(15)
   })
 })

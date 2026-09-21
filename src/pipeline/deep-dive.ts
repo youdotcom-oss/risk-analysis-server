@@ -154,8 +154,15 @@ const MAX_CONTENT_CHARS = 100_000
 // failed other runs at the same size — nondeterministic context overflow.
 const MAX_TOP_RESULTS = 15
 
-function topScored(scored: ScoredResult[], limit = MAX_TOP_RESULTS): ScoredResult[] {
-  return [...scored].sort((a, b) => b.score - a.score).slice(0, limit)
+export function topScored(scored: ScoredResult[], limit = MAX_TOP_RESULTS): ScoredResult[] {
+  // Knowledge facts (url-less, licensed) always reach synthesis: they arrive
+  // last in parse order and score through the same gate as web results, so
+  // rank alone buries them. Reserve them a slot; ranked web results fill the rest.
+  const knowledge = scored.filter((item) => item.url === '')
+  const web = [...scored.filter((item) => item.url !== '')]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit - knowledge.length)
+  return [...web, ...knowledge]
 }
 
 /** Stage 2: run the agentic proposal loop with Jev-gated search tools. */
