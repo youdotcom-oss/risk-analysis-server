@@ -156,6 +156,17 @@ systemctl --user status risk-analysis
    closed: a fresh report (briefing with licensed data, or the
    low-severity clean-sweep record). That's the whole demo.
 
+### Cloud variant: sweeps while your machine is off
+
+The local service only sweeps while the machine is on. If you want sweeps
+(or report summaries) while it's asleep or closed, run the HTTP entry on a
+host — the Docker section above covers Fly/Railway with `RISK_JWT_SECRET`
+and `RISK_ALLOWED_HOSTS` — and let Claude's scheduled tasks (or any
+remote cron) call the same tools over authenticated HTTPS. A remote task
+cannot reach a laptop's stdio server or its SQLite file; remote reach
+requires the hosted server. That variant is out of scope here: the local
+service design stands alone.
+
 ## Environment reference
 
 | Variable | Used by | Meaning |
