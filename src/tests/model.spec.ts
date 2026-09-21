@@ -66,3 +66,28 @@ describe('getModel', () => {
     expect(paths).toEqual(['/api/v1/chat/completions'])
   })
 })
+
+describe('getModel provider selection', () => {
+  test('RISK_PROVIDER=ollama selects the local model without an OpenRouter key', () => {
+    delete process.env.OPENROUTER_API_KEY
+    process.env.RISK_PROVIDER = 'ollama'
+    delete process.env.RISK_MODEL
+    const model = getModel()
+    expect(model.provider).toBe('ollama')
+    expect(model.modelId).toBe('qwen3.8:27b')
+  })
+
+  test('ollama branch honors RISK_MODEL override (local tag form)', () => {
+    process.env.RISK_PROVIDER = 'ollama'
+    process.env.RISK_MODEL = 'muse-glimmer'
+    const model = getModel()
+    expect(model.provider).toBe('ollama')
+    expect(model.modelId).toBe('muse-glimmer')
+  })
+
+  test('default (no provider, no key) names the missing key and how to pick ollama', () => {
+    delete process.env.OPENROUTER_API_KEY
+    delete process.env.RISK_PROVIDER
+    expect(() => getModel()).toThrow(/OPENROUTER_API_KEY.*RISK_PROVIDER=ollama/s)
+  })
+})

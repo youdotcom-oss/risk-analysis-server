@@ -91,6 +91,12 @@ Three API keys are required for sweeps: `YDC_API_KEY` (You.com search),
 serves without them; missing keys are named in the startup warnings and
 sweeps fail with the specific auth error.
 
+A local model is available via `RISK_PROVIDER=ollama` (`OLLAMA_BASE_URL`
+overrides the endpoint; model ids are provider-scoped — Ollama uses tags
+like `qwen3.8:27b`). Caveat, measured on a 32GB M2 Pro: local 27B inference
+ran ~137s per short reply, making sweep-scale generation impractical —
+the cloud provider is the sane default unless you have real GPU capacity.
+
 ## License
 
 MIT
