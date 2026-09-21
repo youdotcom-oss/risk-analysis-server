@@ -1,6 +1,7 @@
 import { noul, score, TypeSafeClient } from '@typesafe-ai/sdk'
 
 export type SystemOneCaller = Pick<TypeSafeClient, 'systemOne'>
+export { TypeSafeClient }
 
 export type RiskProfile = {
   title: string

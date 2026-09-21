@@ -88,6 +88,14 @@ export function updateSourceUtility(db: Database, userId: string, deltas: Utilit
   apply.immediate(deltas)
 }
 
+/** Provision a tenant row on first authenticated use (idempotent). */
+export function ensureUser(db: Database, id: string): void {
+  db.query(
+    `INSERT INTO users (id, email, created_at) VALUES ($id, $email, $now)
+     ON CONFLICT(id) DO NOTHING`,
+  ).run({ id, email: `${id}@oauth`, now: Date.now() })
+}
+
 export type ProfileRecordRow = {
   id: string
   userId: string
@@ -136,6 +144,34 @@ export function getActiveProfiles(db: Database, userId: string): ProfileRecordRo
        FROM risk_profiles WHERE user_id = ? AND is_active = 1 ORDER BY title`,
     )
     .all(userId)
+    .map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      title: row.title,
+      locations: JSON.parse(row.locations) as string[],
+      triggers: JSON.parse(row.policy_triggers) as string[],
+      isActive: row.is_active === 1,
+    }))
+}
+
+/** Cron-path variant: every tenant's active profiles, for the batched sweep. */
+export function getAllActiveProfiles(db: Database): ProfileRecordRow[] {
+  return db
+    .query<
+      {
+        id: string
+        user_id: string
+        title: string
+        locations: string
+        policy_triggers: string
+        is_active: number
+      },
+      []
+    >(
+      `SELECT id, user_id, title, locations, policy_triggers, is_active
+       FROM risk_profiles WHERE is_active = 1 ORDER BY title`,
+    )
+    .all()
     .map((row) => ({
       id: row.id,
       userId: row.user_id,
