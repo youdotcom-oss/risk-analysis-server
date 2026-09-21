@@ -3,6 +3,7 @@ import { createMcpHonoApp } from '@modelcontextprotocol/hono'
 import { createMcpHandler } from '@modelcontextprotocol/server'
 import type { Context, Hono } from 'hono'
 import { jwtVerify } from 'jose'
+import { missingKeyWarnings } from './config.ts'
 import { ensureUser, getAllActiveProfiles, openDb } from './db.ts'
 import { buildMcpServer, type McpFactoryDeps } from './mcp.ts'
 import { getModel } from './model.ts'
@@ -93,6 +94,7 @@ function getServerApp(): Hono {
   const secret = process.env.RISK_JWT_SECRET
   if (!secret) throw new Error('RISK_JWT_SECRET is required for the HTTP server')
   const db = openDb(process.env.RISK_DB_PATH ?? 'risk.sqlite')
+  for (const warning of missingKeyWarnings()) console.warn(warning)
 
   cachedApp = createApp({
     db,
