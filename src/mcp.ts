@@ -15,6 +15,8 @@ export type McpFactoryDeps = {
 }
 
 export const REPORT_URI = 'ui://risk-report/latest'
+/** MCP Apps (SEP-1865) resource MIME type — signals "render me in an iframe". */
+export const APP_MIME_TYPE = 'text/html;profile=mcp-app'
 
 export function buildMcpServer(deps: McpFactoryDeps): McpServer {
   const server = new McpServer({ name: 'risk-analysis-server', version: '0.0.1' })
@@ -54,6 +56,10 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
       title: 'Trigger Manual Sweep',
       description: 'Run the risk sweep pipeline now for one of your risk profiles.',
       inputSchema: z.object({ profileId: z.string().min(1) }),
+      // MCP Apps binding (SEP-1865): after the sweep the host renders the
+      // report resource in a sandboxed iframe. Text-only hosts fall back to
+      // the JSON content below — the binding is additive.
+      _meta: { ui: { resourceUri: REPORT_URI } },
     },
     async ({ profileId }) => {
       const profile = getActiveProfiles(deps.db, deps.userId).find((p) => p.id === profileId)
@@ -70,7 +76,7 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
     },
   )
 
-  server.registerResource('risk-report-latest', REPORT_URI, { mimeType: 'text/html' }, async () => {
+  server.registerResource('risk-report-latest', REPORT_URI, { mimeType: APP_MIME_TYPE }, async () => {
     const report = deps.db
       .query<{ content_html: string }, [string]>(
         `SELECT content_html FROM risk_reports
@@ -81,7 +87,7 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
       contents: [
         {
           uri: REPORT_URI,
-          mimeType: 'text/html',
+          mimeType: APP_MIME_TYPE,
           text: report?.content_html ?? '<html><body><p>No reports yet.</p></body></html>',
         },
       ],

@@ -68,6 +68,21 @@ describe('buildMcpServer', () => {
     db.close()
   })
 
+  test('trigger_manual_sweep binds the report UI resource (MCP Apps _meta)', async () => {
+    const { client, server, serverTransport, clientTransport } = connect()
+    await server.connect(serverTransport)
+    await client.connect(clientTransport)
+    const tools = await client.listTools()
+    const sweep = tools.tools.find((tool) => tool.name === 'trigger_manual_sweep')
+    // SEP-1865: the host only renders the iframe when the tool declares
+    // _meta.ui.resourceUri pointing at a ui:// resource.
+    expect((sweep?._meta as { ui?: { resourceUri?: string } } | undefined)?.ui?.resourceUri).toBe(
+      'ui://risk-report/latest',
+    )
+    await client.close()
+    await server.close()
+  })
+
   test('ui://risk-report/latest serves the latest stored HTML', async () => {
     const { db, client, serverTransport, clientTransport, server } = connect()
     await server.connect(serverTransport)
@@ -82,7 +97,7 @@ describe('buildMcpServer', () => {
     ).run({ now: Date.now() })
     const resource = await client.readResource({ uri: 'ui://risk-report/latest' })
     const contents = resource.contents[0]
-    expect(contents?.mimeType).toBe('text/html')
+    expect(contents?.mimeType).toBe('text/html;profile=mcp-app')
     expect((contents as { text?: string }).text).toBe('<p>bad</p>')
     await client.close()
     await server.close()
