@@ -66,7 +66,14 @@ HTTP + cron ───┘        │                            └─► You.com
 ## For developers
 
 This repo ships three ways to consume it, each with a skill that pins its
-contract:
+contract. Install them into your AI coding agent with the Skills CLI:
+
+```sh
+bunx skills add youdotcom-oss/risk-analsis-server
+```
+
+(note the spelling: `analsis` — the published package name has this typo),
+or copy `skills/*/SKILL.md` into your agent's skills directory by hand:
 
 - **Run it as-is** → `skills/local-run`
 - **Embed it in your Bun app** (your auth, your hosting) → `skills/import-integration`
