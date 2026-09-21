@@ -32,11 +32,9 @@ Point your client at `bun src/stdio.ts` (or the published bin:
 
 Paste one of these into your client after connecting:
 
-> Create a risk profile "PNW data center buildout" watching Oregon, Washington, and California with these triggers: data center moratoriums and permitting pauses, power grid capacity constraints, electricity price today. Then run a manual sweep for it and summarize the report when done — note whether the report cites a live electricity price.
-
-> Create a risk profile "US AI lab operations" watching Taiwan and the United States with these triggers: TSMC revenue latest quarter, chip export policy changes, electricity price today, interest rate today. Then run a manual sweep for it and summarize the report when done.
-
-> Create a risk profile "Gulf AI infrastructure" watching Saudi Arabia with these triggers: crude oil price today, weather in Riyadh, Gulf shipping and infrastructure security, chip export policy changes. Then run a manual sweep for it and summarize the report when done.
+1. > Create a risk profile "PNW data center buildout" watching Oregon, Washington, and California with these triggers: data center moratoriums and permitting pauses, power grid capacity constraints, electricity price today. Then run a manual sweep for it and summarize the report when done — note whether the report cites a live electricity price.
+2. > Create a risk profile "US AI lab operations" watching Taiwan and the United States with these triggers: TSMC revenue latest quarter, chip export policy changes, electricity price today, interest rate today. Then run a manual sweep for it and summarize the report when done.
+3. > Create a risk profile "Gulf AI infrastructure" watching Saudi Arabia with these triggers: crude oil price today, weather in Riyadh, Gulf shipping and infrastructure security, chip export policy changes. Then run a manual sweep for it and summarize the report when done.
 
 The tool descriptions carry the protocol (start → poll until
 `completed`/`failed`); expect ~2–3 minutes. Every Stage-3 search runs
