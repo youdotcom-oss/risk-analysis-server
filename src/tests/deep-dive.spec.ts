@@ -27,14 +27,29 @@ describe('collectQueries', () => {
     const steps = [
       {
         content: [
-          { type: 'tool-call', toolCallId: 'c1', toolName: 'you-search', input: { query: 'Hamburg Port strike' } },
+          {
+            type: 'tool-call',
+            toolCallId: 'c1',
+            toolName: 'you-search',
+            input: { query: 'Hamburg Port strike' },
+          },
         ],
       },
       {
         content: [
           { type: 'text', text: 'searching more' },
-          { type: 'tool-call', toolCallId: 'c2', toolName: 'you-search', input: { query: 'Hamburg Port strike' } },
-          { type: 'tool-call', toolCallId: 'c3', toolName: 'you-search', input: { query: 'Duisburg rail blockade' } },
+          {
+            type: 'tool-call',
+            toolCallId: 'c2',
+            toolName: 'you-search',
+            input: { query: 'Hamburg Port strike' },
+          },
+          {
+            type: 'tool-call',
+            toolCallId: 'c3',
+            toolName: 'you-search',
+            input: { query: 'Duisburg rail blockade' },
+          },
         ],
       },
     ]
@@ -45,8 +60,18 @@ describe('collectQueries', () => {
     const steps = [
       {
         content: [
-          { type: 'tool-call', toolCallId: 'c1', toolName: 'you-contents', input: { urls: ['x'] } },
-          { type: 'tool-call', toolCallId: 'c2', toolName: 'you-search', input: {} },
+          {
+            type: 'tool-call',
+            toolCallId: 'c1',
+            toolName: 'you-contents',
+            input: { urls: ['x'] },
+          },
+          {
+            type: 'tool-call',
+            toolCallId: 'c2',
+            toolName: 'you-search',
+            input: {},
+          },
         ],
       },
     ]
@@ -69,7 +94,13 @@ describe('fallbackQuery', () => {
   })
 
   test('falls back to generic template without locations', () => {
-    const profile: ProfileRecord = { id: 'p1', userId: 'u', title: 't', locations: [], triggers: [] }
+    const profile: ProfileRecord = {
+      id: 'p1',
+      userId: 'u',
+      title: 't',
+      locations: [],
+      triggers: [],
+    }
     expect(fallbackQuery(profile)).toBe('("supply chain" OR "disruption" OR "hazard" OR "strike")')
   })
 })
@@ -93,8 +124,20 @@ describe('retrieveAndScore', () => {
                 text: JSON.stringify({
                   results:
                     input.query === 'Hamburg Port strike'
-                      ? [shared, { url: 'https://hamburg.example/news', snippet: 'Hamburg port strike' }]
-                      : [shared, { url: 'https://rotterdam.example/news', snippet: 'Rotterdam delays' }],
+                      ? [
+                          shared,
+                          {
+                            url: 'https://hamburg.example/news',
+                            snippet: 'Hamburg port strike',
+                          },
+                        ]
+                      : [
+                          shared,
+                          {
+                            url: 'https://rotterdam.example/news',
+                            snippet: 'Rotterdam delays',
+                          },
+                        ],
                 }),
               },
             ],
@@ -111,7 +154,14 @@ describe('retrieveAndScore', () => {
       systemOne(request: unknown) {
         const keys = Object.keys((request as { questions: Record<string, unknown> }).questions)
         const answers = Object.fromEntries(
-          keys.map((key) => [key, { type: 'score', score: scores[index++ % scores.length] ?? 1, confidence: 0.9 }]),
+          keys.map((key) => [
+            key,
+            {
+              type: 'score',
+              score: scores[index++ % scores.length] ?? 1,
+              confidence: 0.9,
+            },
+          ]),
         )
         return Promise.resolve({ answers }) as never
       },
@@ -140,7 +190,12 @@ describe('retrieveAndScore', () => {
                         description: 'Dutch union sets national strike',
                       },
                     ],
-                    news: [{ url: 'https://news.example/port', description: 'Rotterdam delays' }],
+                    news: [
+                      {
+                        url: 'https://news.example/port',
+                        description: 'Rotterdam delays',
+                      },
+                    ],
                   },
                 }),
               },
@@ -167,7 +222,12 @@ describe('retrieveAndScore', () => {
     const { tools, searchCalls } = stubTools()
     const client = { tools: () => Promise.resolve(tools) } as never
     const db = openDb(tempDbPath())
-    const deps = { client, jev: createJev(jevStub([2.5, 0.5])), db, userId: 'local-user' }
+    const deps = {
+      client,
+      jev: createJev(jevStub([2.5, 0.5])),
+      db,
+      userId: 'local-user',
+    }
     const scored = await retrieveAndScore(deps, ['Hamburg Port strike', 'Duisburg rail blockade'])
 
     // both queries executed (concurrently)
@@ -198,7 +258,12 @@ function stubContentTools() {
             {
               type: 'text',
               text: JSON.stringify({
-                results: [{ url: 'https://hamburg.example/news', snippet: 'Hamburg port strike halts ferries' }],
+                results: [
+                  {
+                    url: 'https://hamburg.example/news',
+                    snippet: 'Hamburg port strike halts ferries',
+                  },
+                ],
               }),
             },
           ],
@@ -209,7 +274,14 @@ function stubContentTools() {
       inputSchema: jsonSchema({ type: 'object' }),
       async execute(input: { urls: string[] }) {
         contentsCalls.push({ urls: input.urls })
-        return { content: [{ type: 'text', text: `# Article\n\nFull markdown for ${input.urls.join(', ')}` }] }
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `# Article\n\nFull markdown for ${input.urls.join(', ')}`,
+            },
+          ],
+        }
       },
     },
   }
@@ -435,7 +507,13 @@ describe('deepDive', () => {
         db,
         userId: 'local-user',
       },
-      { id: 'p1', userId: 'local-user', title: 'EU ports', locations: ['Hamburg Port'], triggers: ['strikes'] },
+      {
+        id: 'p1',
+        userId: 'local-user',
+        title: 'EU ports',
+        locations: ['Hamburg Port'],
+        triggers: ['strikes'],
+      },
     )
 
     expect(searchInputs[0]?.query).toBe('"Hamburg Port" AND ("supply chain" OR "disruption" OR "hazard" OR "strike")')

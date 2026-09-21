@@ -28,7 +28,12 @@ function seededDb() {
 describe('sweep task lifecycle', () => {
   test('create persists a working task before any result exists', () => {
     const db = seededDb()
-    createSweepTask(db, { taskId: 't1', userId: 'local-user', profileId: 'p1', ttlMs: 60_000 })
+    createSweepTask(db, {
+      taskId: 't1',
+      userId: 'local-user',
+      profileId: 'p1',
+      ttlMs: 60_000,
+    })
     const task = getSweepTask(db, 't1')
     expect(task?.status).toBe('working')
     expect(task?.profile_id).toBe('p1')
@@ -39,11 +44,19 @@ describe('sweep task lifecycle', () => {
 
   test('complete stores the result payload', () => {
     const db = seededDb()
-    createSweepTask(db, { taskId: 't2', userId: 'local-user', profileId: 'p1', ttlMs: 60_000 })
+    createSweepTask(db, {
+      taskId: 't2',
+      userId: 'local-user',
+      profileId: 'p1',
+      ttlMs: 60_000,
+    })
     completeSweepTask(db, 't2', { severity: 'low', reportId: 'r1' })
     const task = getSweepTask(db, 't2')
     expect(task?.status).toBe('completed')
-    expect(JSON.parse(task?.result_json ?? 'null')).toEqual({ severity: 'low', reportId: 'r1' })
+    expect(JSON.parse(task?.result_json ?? 'null')).toEqual({
+      severity: 'low',
+      reportId: 'r1',
+    })
     db.close()
   })
 
@@ -51,7 +64,12 @@ describe('sweep task lifecycle', () => {
     const db = seededDb()
     failSweepTask(db, 'no-such-task', { code: -32000, message: 'boom' }) // unknown id: no-op, no throw
 
-    createSweepTask(db, { taskId: 't3', userId: 'local-user', profileId: 'p1', ttlMs: 60_000 })
+    createSweepTask(db, {
+      taskId: 't3',
+      userId: 'local-user',
+      profileId: 'p1',
+      ttlMs: 60_000,
+    })
     failSweepTask(db, 't3', { code: -32000, message: 'jev unavailable' })
     expect(getSweepTask(db, 't3')?.status).toBe('failed')
     expect(getSweepTask(db, 't3')?.error_json).toContain('jev unavailable')
@@ -64,7 +82,12 @@ describe('sweep task lifecycle', () => {
 
   test('expired tasks read as null', () => {
     const db = seededDb()
-    createSweepTask(db, { taskId: 't4', userId: 'local-user', profileId: 'p1', ttlMs: -1 })
+    createSweepTask(db, {
+      taskId: 't4',
+      userId: 'local-user',
+      profileId: 'p1',
+      ttlMs: -1,
+    })
     expect(getSweepTask(db, 't4')).toBeNull()
     db.close()
   })
@@ -77,7 +100,12 @@ describe('runSweepForTask', () => {
       `INSERT INTO risk_profiles (id, user_id, title, locations, policy_triggers, updated_at)
        VALUES ('p1', 'local-user', 't', '[]', '[]', $now)`,
     ).run({ now: Date.now() })
-    createSweepTask(db, { taskId: 'tk1', userId: 'local-user', profileId: 'p1', ttlMs: 60_000 })
+    createSweepTask(db, {
+      taskId: 'tk1',
+      userId: 'local-user',
+      profileId: 'p1',
+      ttlMs: 60_000,
+    })
     const deps = {
       db,
       fetchHighlights: async () => ['h'],
@@ -87,7 +115,13 @@ describe('runSweepForTask', () => {
     const outcome = await runSweepForTask(
       db,
       deps,
-      { id: 'p1', userId: 'local-user', title: 't', locations: [], triggers: [] },
+      {
+        id: 'p1',
+        userId: 'local-user',
+        title: 't',
+        locations: [],
+        triggers: [],
+      },
       'tk1',
     )
     expect(outcome.escalated).toBe(true)
@@ -98,7 +132,12 @@ describe('runSweepForTask', () => {
 
   test('fails the task with the error message on sweep failure', async () => {
     const db = openDb(tempDbPath())
-    createSweepTask(db, { taskId: 'tk2', userId: 'local-user', profileId: 'p1', ttlMs: 60_000 })
+    createSweepTask(db, {
+      taskId: 'tk2',
+      userId: 'local-user',
+      profileId: 'p1',
+      ttlMs: 60_000,
+    })
     const deps = {
       db,
       fetchHighlights: async () => ['h'],
@@ -108,7 +147,18 @@ describe('runSweepForTask', () => {
       },
     } as never
     await expect(
-      runSweepForTask(db, deps, { id: 'p1', userId: 'local-user', title: 't', locations: [], triggers: [] }, 'tk2'),
+      runSweepForTask(
+        db,
+        deps,
+        {
+          id: 'p1',
+          userId: 'local-user',
+          title: 't',
+          locations: [],
+          triggers: [],
+        },
+        'tk2',
+      ),
     ).rejects.toThrow('synthesis exploded')
     const task = getSweepTask(db, 'tk2')
     expect(task?.status).toBe('failed')

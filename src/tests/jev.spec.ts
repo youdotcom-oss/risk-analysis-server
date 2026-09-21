@@ -12,7 +12,9 @@ function stubCaller(answer: number, captured: unknown[] = []) {
   const caller = {
     systemOne(request: unknown) {
       captured.push(request)
-      return Promise.resolve({ answers: { threat: { type: 'noul', noul: answer } } })
+      return Promise.resolve({
+        answers: { threat: { type: 'noul', noul: answer } },
+      })
     },
   }
   return caller as unknown as SystemOneCaller
@@ -73,7 +75,10 @@ describe('scoreResults', () => {
       },
     } as unknown as SystemOneCaller
     const scores = await scoreResults(caller, profile, [
-      { url: 'https://a.example', snippet: 'Hamburg port strike halts operations' },
+      {
+        url: 'https://a.example',
+        snippet: 'Hamburg port strike halts operations',
+      },
       { url: 'https://b.example', snippet: 'Local bakery opens downtown' },
     ])
     expect(captured).toHaveLength(1)

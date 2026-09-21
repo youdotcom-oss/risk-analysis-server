@@ -10,6 +10,7 @@ import {
   getSweepTask,
   saveProfile,
 } from './db.ts'
+import bundledView from './generated/view-html.ts'
 import type { ProfileRecord, SweepOutcome } from './pipeline/sweep.ts'
 
 export type McpFactoryDeps = {
@@ -26,7 +27,10 @@ export const REPORT_URI = 'ui://risk-report/latest'
 export const APP_MIME_TYPE = 'text/html;profile=mcp-app'
 
 export function buildMcpServer(deps: McpFactoryDeps): McpServer {
-  const server = new McpServer({ name: 'risk-analysis-server', version: '0.0.1' })
+  const server = new McpServer({
+    name: 'risk-analysis-server',
+    version: '0.0.1',
+  })
 
   server.registerTool(
     'set_risk_profile',
@@ -104,30 +108,57 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
         if (task.status === 'completed') {
           const outcome = JSON.parse(task.result_json ?? '{}') as Record<string, unknown>
           return {
-            content: [{ type: 'text', text: JSON.stringify({ status: 'completed', ...outcome }) }],
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ status: 'completed', ...outcome }),
+              },
+            ],
           }
         }
         if (task.status === 'failed') {
           return {
             isError: true,
-            content: [{ type: 'text', text: `Sweep failed: ${task.error_json ?? 'unknown error'}` }],
+            content: [
+              {
+                type: 'text',
+                text: `Sweep failed: ${task.error_json ?? 'unknown error'}`,
+              },
+            ],
           }
         }
-        return { content: [{ type: 'text', text: JSON.stringify({ task_id, status: task.status }) }] }
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ task_id, status: task.status }),
+            },
+          ],
+        }
       }
       // Start branch: durably record the task, launch the sweep in the
       // background, and return the handle without blocking the caller.
       if (!profileId) {
         return {
           isError: true,
-          content: [{ type: 'text', text: 'Provide profileId to start a sweep, or task_id to poll one.' }],
+          content: [
+            {
+              type: 'text',
+              text: 'Provide profileId to start a sweep, or task_id to poll one.',
+            },
+          ],
         }
       }
       const profile = getActiveProfiles(deps.db, deps.userId).find((p) => p.id === profileId)
       if (!profile) {
         return {
           isError: true,
-          content: [{ type: 'text', text: `No active profile ${profileId} for this user.` }],
+          content: [
+            {
+              type: 'text',
+              text: `No active profile ${profileId} for this user.`,
+            },
+          ],
         }
       }
       const taskId = randomUUID()
@@ -184,7 +215,12 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
       if (!report) {
         return {
           isError: true,
-          content: [{ type: 'text', text: report_id ? `No report ${report_id}.` : 'No reports yet.' }],
+          content: [
+            {
+              type: 'text',
+              text: report_id ? `No report ${report_id}.` : 'No reports yet.',
+            },
+          ],
         }
       }
       return {
@@ -209,12 +245,17 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
            WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
       )
       .get(deps.userId)
+    // Serve the bundled MCP Apps shell when available: it handshakes with the
+    // host and pulls the briefing via get_risk_report. When the view is not
+    // bundled (view-html.ts empty), fall back to the stored report HTML so
+    // resource readers still get meaningful content.
+    const text = bundledView || (report?.content_html ?? '<html><body><p>No reports yet.</p></body></html>')
     return {
       contents: [
         {
           uri: REPORT_URI,
           mimeType: APP_MIME_TYPE,
-          text: report?.content_html ?? '<html><body><p>No reports yet.</p></body></html>',
+          text,
         },
       ],
     }

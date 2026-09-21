@@ -18,7 +18,13 @@ const markdown = [
 describe('renderReport', () => {
   test('builds a self-contained styled document with header, tag, and rendered sections', () => {
     const html = renderReport({
-      profile: { id: 'p1', userId: 'u', title: 'EU port operations', locations: ['Hamburg Port'], triggers: [] },
+      profile: {
+        id: 'p1',
+        userId: 'u',
+        title: 'EU port operations',
+        locations: ['Hamburg Port'],
+        triggers: [],
+      },
       severity: 'critical',
       markdown,
       generatedAt: 1700000000000,
@@ -40,7 +46,13 @@ describe('renderReport', () => {
 
   test('model HTML is neutralized: raw tags never reach the output', () => {
     const html = renderReport({
-      profile: { id: 'p1', userId: 'u', title: 't', locations: [], triggers: [] },
+      profile: {
+        id: 'p1',
+        userId: 'u',
+        title: 't',
+        locations: [],
+        triggers: [],
+      },
       severity: 'low',
       markdown: '## Summary\n\nHello <script>alert(1)</script> and <img src=x onerror=alert(1)>',
       generatedAt: 1700000000000,
@@ -53,7 +65,13 @@ describe('renderReport', () => {
 
   test('severity tag carries text alongside color', () => {
     const html = renderReport({
-      profile: { id: 'p1', userId: 'u', title: 't', locations: [], triggers: [] },
+      profile: {
+        id: 'p1',
+        userId: 'u',
+        title: 't',
+        locations: [],
+        triggers: [],
+      },
       severity: 'medium',
       markdown,
       generatedAt: 1700000000000,

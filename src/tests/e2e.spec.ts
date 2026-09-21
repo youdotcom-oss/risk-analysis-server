@@ -61,13 +61,20 @@ describe('e2e: real client through the http entry (in-process)', () => {
     // tools/call persists a tenant-scoped profile
     const call = await client.callTool({
       name: 'set_risk_profile',
-      arguments: { title: 'E2E profile', locations: ['Hamburg Port'], triggers: ['strikes'] },
+      arguments: {
+        title: 'E2E profile',
+        locations: ['Hamburg Port'],
+        triggers: ['strikes'],
+      },
     })
     expect(call.isError ?? false).toBe(false)
 
-    // resource read serves the placeholder (no reports yet)
-    const resource = await client.readResource({ uri: 'ui://risk-report/latest' })
-    expect((resource.contents[0] as { text?: string }).text).toContain('No reports yet')
+    // resource read serves the bundled app shell (report fallback when
+    // unbundled) — either way non-empty
+    const resource = await client.readResource({
+      uri: 'ui://risk-report/latest',
+    })
+    expect((resource.contents[0] as { text?: string }).text?.length).toBeGreaterThan(0)
 
     // the profile landed under the bearer sub, not local-user
     const profiles = db.query<{ user_id: string; title: string }, []>('SELECT user_id, title FROM risk_profiles').all()
@@ -127,9 +134,13 @@ describe('e2e: stdio spawned process', () => {
     })
     expect(call.isError ?? false).toBe(false)
 
-    // read the report resource over stdio
-    const resource = await client.readResource({ uri: 'ui://risk-report/latest' })
-    expect((resource.contents[0] as { text?: string }).text).toContain('No reports yet')
+    // read the report resource over stdio — the bundled app shell when the
+    // view is built, the no-reports fallback otherwise
+    const resource = await client.readResource({
+      uri: 'ui://risk-report/latest',
+    })
+    const resourceText = (resource.contents[0] as { text?: string }).text ?? ''
+    expect(resourceText.length).toBeGreaterThan(0)
 
     await client.close()
   }, 30_000)

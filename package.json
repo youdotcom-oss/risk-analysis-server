@@ -44,7 +44,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "bun build ./src/stdio.ts --outfile ./bin/stdio.js --target=bun",
+    "build": "bun build ./src/stdio.ts --outfile ./bin/stdio.js --target=bun && bun scripts/embed-view.ts",
     "start": "bun run ./bin/stdio.js",
     "start:http": "bun src/server.ts",
     "check": "bun run check:skills && bun run check:biome && bun run check:types",
@@ -65,6 +65,7 @@
     "@commitlint/cli": "^21.2.1",
     "@commitlint/config-conventional": "^21.2.0",
     "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/ext-apps": "^2.0.0",
     "@modelcontextprotocol/hono": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "@types/bun": "latest",

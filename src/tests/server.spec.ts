@@ -54,7 +54,11 @@ function mcpRequest(app: Awaited<ReturnType<typeof makeApp>>['app'], body: unkno
 describe('createApp', () => {
   test('rejects unauthenticated /mcp requests before reaching the handler', async () => {
     const { app } = makeApp()
-    const res = await mcpRequest(app, { jsonrpc: '2.0', id: 1, method: 'tools/list' })
+    const res = await mcpRequest(app, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+    })
     expect(res.status).toBe(401)
   })
 

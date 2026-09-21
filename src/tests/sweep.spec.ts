@@ -53,7 +53,12 @@ function makeDeps(overrides: {
       },
       deepDive: async (profile: ProfileRecord) => {
         deepDiveCalls.push(profile)
-        return overrides.deepDiveResult ?? { severity: 'medium', contentHtml: '<p>brief</p>' }
+        return (
+          overrides.deepDiveResult ?? {
+            severity: 'medium',
+            contentHtml: '<p>brief</p>',
+          }
+        )
       },
     },
   }
@@ -61,7 +66,9 @@ function makeDeps(overrides: {
 
 describe('runSweep', () => {
   test('below threshold: exits after triage without escalating', async () => {
-    const { deps, triageCalls, deepDiveCalls } = makeDeps({ threatProbability: 0.3 })
+    const { deps, triageCalls, deepDiveCalls } = makeDeps({
+      threatProbability: 0.3,
+    })
     const outcome: SweepOutcome = await runSweep(deps, profile)
     expect(outcome.escalated).toBe(false)
     expect(triageCalls).toHaveLength(1)
@@ -102,7 +109,14 @@ describe('sweepAllProfiles', () => {
 
     const results = await sweepAllProfiles(deps, [profile, failing])
     expect(results).toEqual([
-      { profileId: 'p1', outcome: { escalated: true, severity: 'medium', reportId: expect.any(String) } },
+      {
+        profileId: 'p1',
+        outcome: {
+          escalated: true,
+          severity: 'medium',
+          reportId: expect.any(String),
+        },
+      },
       { profileId: 'p-bad', error: 'synthesizer down' },
     ])
     // surviving profile still persisted its report
@@ -143,7 +157,12 @@ describe('buildSweepDeps', () => {
               {
                 type: 'text',
                 text: JSON.stringify({
-                  results: [{ url: 'https://hamburg.example/news', snippet: 'Hamburg port strike' }],
+                  results: [
+                    {
+                      url: 'https://hamburg.example/news',
+                      snippet: 'Hamburg port strike',
+                    },
+                  ],
                 }),
               },
             ],

@@ -111,7 +111,10 @@ export async function retrieveAndScore(deps: RetrieveDeps, queries: string[]): P
   updateSourceUtility(
     deps.db,
     deps.userId,
-    scored.map((item) => ({ domain: domainOf(item.url), delta: item.score - 1 })),
+    scored.map((item) => ({
+      domain: domainOf(item.url),
+      delta: item.score - 1,
+    })),
   )
 
   return scored.map((item) => ({
@@ -145,7 +148,11 @@ function topScored(scored: ScoredResult[], limit = MAX_TOP_RESULTS): ScoredResul
 
 /** Stage 2: run the agentic proposal loop with Jev-gated search tools. */
 async function proposeQueries(deps: DeepDiveDeps, profile: RiskProfile): Promise<string[]> {
-  const tools = (await createDeepDiveTools({ client: deps.client, jev: deps.jev, profile })) as ToolSet
+  const tools = (await createDeepDiveTools({
+    client: deps.client,
+    jev: deps.jev,
+    profile,
+  })) as ToolSet
   const result = await generateText({
     model: deps.model,
     tools,

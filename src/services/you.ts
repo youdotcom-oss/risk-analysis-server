@@ -19,7 +19,11 @@ export function createYdcClient(): Promise<MCPClient> {
   return createMCPClient({ transport: buildYdcTransport() })
 }
 
-export type NormalizedSearchResult = { url: string; title: string; description: string }
+export type NormalizedSearchResult = {
+  url: string
+  title: string
+  description: string
+}
 
 /**
  * Parse a you-search text payload into the fields downstream consumers need.
@@ -37,7 +41,12 @@ export function parseSearchResults(text: string): NormalizedSearchResult[] {
   }
   const collect = (items: unknown): NormalizedSearchResult[] =>
     (Array.isArray(items) ? items : []).flatMap((item) => {
-      const record = item as { url?: unknown; title?: unknown; snippet?: unknown; description?: unknown }
+      const record = item as {
+        url?: unknown
+        title?: unknown
+        snippet?: unknown
+        description?: unknown
+      }
       if (typeof record.url !== 'string' || record.url === '') return []
       return [
         {
@@ -124,7 +133,12 @@ export async function createDeepDiveTools(deps: DeepDiveDeps): Promise<Record<st
           ?.filter((block) => block.type === 'text')
           .flatMap((block) => parseSearchResults(block.text ?? ''))
         return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ results: compact }) }],
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ results: compact }),
+            },
+          ],
         }
       },
     },

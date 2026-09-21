@@ -19,7 +19,10 @@ function validateSkill(dir: string): Finding[] {
   // frontmatter: must open with --- and close with ---
   const match = content.match(/^---\n([\s\S]*?)\n---\n/)
   if (!match || match[1] === undefined) {
-    findings.push({ file: dir, problem: 'missing or malformed YAML frontmatter' })
+    findings.push({
+      file: dir,
+      problem: 'missing or malformed YAML frontmatter',
+    })
     return findings
   }
   const frontmatter = match[1]
@@ -38,10 +41,16 @@ function validateSkill(dir: string): Finding[] {
       })
     }
     if (name.length > 64) {
-      findings.push({ file: dir, problem: `name exceeds 64 characters (${name.length})` })
+      findings.push({
+        file: dir,
+        problem: `name exceeds 64 characters (${name.length})`,
+      })
     }
     if (name !== dir) {
-      findings.push({ file: dir, problem: `name "${name}" does not match directory "${dir}"` })
+      findings.push({
+        file: dir,
+        problem: `name "${name}" does not match directory "${dir}"`,
+      })
     }
   } else {
     findings.push({ file: dir, problem: 'missing name field' })
@@ -51,18 +60,27 @@ function validateSkill(dir: string): Finding[] {
   if (!description) {
     findings.push({ file: dir, problem: 'missing description field' })
   } else if (description.length > 1024) {
-    findings.push({ file: dir, problem: `description exceeds 1024 characters (${description.length})` })
+    findings.push({
+      file: dir,
+      problem: `description exceeds 1024 characters (${description.length})`,
+    })
   }
 
   const compatibility = get('compatibility')
   if (compatibility && compatibility.length > 500) {
-    findings.push({ file: dir, problem: `compatibility exceeds 500 characters (${compatibility.length})` })
+    findings.push({
+      file: dir,
+      problem: `compatibility exceeds 500 characters (${compatibility.length})`,
+    })
   }
 
   // body size guidance: SKILL.md under 500 lines
   const body = content.slice(content.indexOf('---', 3))
   if (body.split('\n').length > 500) {
-    findings.push({ file: dir, problem: `SKILL.md body exceeds 500 lines (${body.split('\n').length})` })
+    findings.push({
+      file: dir,
+      problem: `SKILL.md body exceeds 500 lines (${body.split('\n').length})`,
+    })
   }
 
   // referenced files exist (scripts/, references/, assets/ one level deep)
@@ -70,7 +88,10 @@ function validateSkill(dir: string): Finding[] {
   for (const ref of refs) {
     const path = join(SKILLS_DIR, dir, ref[0])
     if (!existsSync(path)) {
-      findings.push({ file: dir, problem: `referenced file missing: ${ref[0]}` })
+      findings.push({
+        file: dir,
+        problem: `referenced file missing: ${ref[0]}`,
+      })
     }
   }
 

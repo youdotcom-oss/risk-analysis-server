@@ -82,7 +82,13 @@ export function updateSourceUtility(db: Database, userId: string, deltas: Utilit
   )
   const apply = db.transaction((entries: UtilityDelta[]) => {
     for (const { domain, delta } of entries) {
-      upsert.run({ userId, domain, delta, score: 1.0 + delta, now: Date.now() })
+      upsert.run({
+        userId,
+        domain,
+        delta,
+        score: 1.0 + delta,
+        now: Date.now(),
+      })
     }
   })
   apply.immediate(deltas)
@@ -209,7 +215,13 @@ export function createSweepTask(db: Database, input: SweepTaskInput): void {
     `INSERT INTO sweep_tasks
        (task_id, user_id, profile_id, status, created_at, updated_at, ttl_at)
      VALUES ($taskId, $userId, $profileId, 'working', $now, $now, $ttlAt)`,
-  ).run({ taskId: input.taskId, userId: input.userId, profileId: input.profileId, now, ttlAt: now + input.ttlMs })
+  ).run({
+    taskId: input.taskId,
+    userId: input.userId,
+    profileId: input.profileId,
+    now,
+    ttlAt: now + input.ttlMs,
+  })
 }
 
 export function getSweepTask(db: Database, taskId: string): SweepTaskRow | null {

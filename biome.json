@@ -6,7 +6,8 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignoreUnknown": false
+    "ignoreUnknown": false,
+    "maxSize": 3145728
   },
   "formatter": {
     "enabled": true,
@@ -56,6 +57,12 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["src/generated/**"],
+      "linter": {
+        "enabled": false
+      }
+    },
     {
       "includes": ["scripts/**/*.ts", "src/stdio.ts", "src/server.ts"],
       "linter": {

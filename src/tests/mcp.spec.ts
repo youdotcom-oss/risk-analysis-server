@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/client'
 import { InMemoryTransport } from '@modelcontextprotocol/server'
 import { getActiveProfiles, openDb } from '../db.ts'
+import bundledView from '../generated/view-html.ts'
 import { buildMcpServer, type McpFactoryDeps } from '../mcp.ts'
 
 const dirs: string[] = []
@@ -85,9 +86,17 @@ describe('buildMcpServer', () => {
     await client.connect(clientTransport)
     const saved = await client.callTool({
       name: 'set_risk_profile',
-      arguments: { title: 'EU ports', locations: ['Hamburg Port'], triggers: ['strikes'] },
+      arguments: {
+        title: 'EU ports',
+        locations: ['Hamburg Port'],
+        triggers: ['strikes'],
+      },
     })
-    const profileId = (JSON.parse((saved.content as unknown as [{ text: string }])[0].text) as { id: string }).id
+    const profileId = (
+      JSON.parse((saved.content as unknown as [{ text: string }])[0].text) as {
+        id: string
+      }
+    ).id
 
     // Start: returns immediately with a task handle; the sweep is still working.
     const started = await client.callTool({
@@ -120,7 +129,11 @@ describe('buildMcpServer', () => {
       if (!JSON.parse(finalText).status || JSON.parse(finalText).status === 'completed') break
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
-    const outcome = JSON.parse(finalText) as { escalated: boolean; severity: string; status?: string }
+    const outcome = JSON.parse(finalText) as {
+      escalated: boolean
+      severity: string
+      status?: string
+    }
     expect(outcome.status).toBe('completed')
     expect(outcome.escalated).toBe(true)
     expect(outcome.severity).toBe('critical')
@@ -168,7 +181,10 @@ describe('buildMcpServer', () => {
        VALUES ('r0', 'other-user', 'p2', 'low', '<p>someone else</p>', $now)`,
     ).run({ now: Date.now() })
 
-    const latest = await client.callTool({ name: 'get_risk_report', arguments: {} })
+    const latest = await client.callTool({
+      name: 'get_risk_report',
+      arguments: {},
+    })
     const latestPayload = JSON.parse((latest.content as unknown as [{ text: string }])[0].text) as {
       severity: string
       report_html: string
@@ -176,10 +192,16 @@ describe('buildMcpServer', () => {
     expect(latestPayload.severity).toBe('critical')
     expect(latestPayload.report_html).toContain('port strike')
 
-    const byId = await client.callTool({ name: 'get_risk_report', arguments: { report_id: 'r0' } })
+    const byId = await client.callTool({
+      name: 'get_risk_report',
+      arguments: { report_id: 'r0' },
+    })
     expect(byId.isError ?? false).toBe(true) // other tenant's report is invisible
 
-    const missing = await client.callTool({ name: 'get_risk_report', arguments: { report_id: 'nope' } })
+    const missing = await client.callTool({
+      name: 'get_risk_report',
+      arguments: { report_id: 'nope' },
+    })
     expect(missing.isError ?? false).toBe(true)
 
     await client.close()
@@ -187,22 +209,23 @@ describe('buildMcpServer', () => {
     db.close()
   })
 
-  test('ui://risk-report/latest serves the latest stored HTML', async () => {
+  test('ui://risk-report/latest serves the MCP Apps shell (report fallback when unbundled)', async () => {
     const { db, client, serverTransport, clientTransport, server } = connect()
     await server.connect(serverTransport)
     await client.connect(clientTransport)
-    db.query(
-      `INSERT INTO risk_profiles (id, user_id, title, locations, policy_triggers, updated_at)
-       VALUES ('p1', 'local-user', 't', '[]', '[]', $now)`,
-    ).run({ now: Date.now() })
-    db.query(
-      `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, created_at)
-       VALUES ('r1', 'local-user', 'p1', 'critical', '<p>bad</p>', $now)`,
-    ).run({ now: Date.now() })
-    const resource = await client.readResource({ uri: 'ui://risk-report/latest' })
+    const resource = await client.readResource({
+      uri: 'ui://risk-report/latest',
+    })
     const contents = resource.contents[0]
     expect(contents?.mimeType).toBe('text/html;profile=mcp-app')
-    expect((contents as { text?: string }).text).toBe('<p>bad</p>')
+    const text = (contents as { text?: string }).text ?? ''
+    if (bundledView) {
+      // Bundled shell: self-contained app that pulls the briefing itself.
+      expect(text).toBe(bundledView)
+      expect(text).toContain('mcp-app')
+    } else {
+      expect(text).toContain('No reports yet.')
+    }
     await client.close()
     await server.close()
     db.close()

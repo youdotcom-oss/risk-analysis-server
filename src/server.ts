@@ -37,7 +37,9 @@ export type AppDeps = {
 }
 
 export function createApp(deps: AppDeps): Hono {
-  const app = createMcpHonoApp({ allowedHosts: process.env.RISK_ALLOWED_HOSTS?.split(',') })
+  const app = createMcpHonoApp({
+    allowedHosts: process.env.RISK_ALLOWED_HOSTS?.split(','),
+  })
 
   app.get('/.well-known/oauth-protected-resource', (c: Context) =>
     c.json({
@@ -142,6 +144,38 @@ function getServerApp(): Hono {
     )
   }
   return cachedApp
+}
+
+// Cron registration at module scope: the fetch wrapper above is lazy, so a
+// server with zero HTTP traffic would otherwise never register the schedule.
+if (process.env.RISK_CRON_SCHEDULE) {
+  // Own connection: cron may run while no HTTP request has opened the app.
+  const cronDb = openDb(defaultDbPath())
+  // Per-profile error isolation lives in sweepAllProfiles; the outer catch
+  // guards against unhandled rejections exiting the server (Bun cron
+  // semantics). No-overlap guarantee makes long sweeps safe on a schedule.
+  Bun.cron(
+    process.env.RISK_CRON_SCHEDULE,
+    async () => {
+      try {
+        const profiles = getAllActiveProfiles(cronDb)
+        const sweepDeps = buildSweepDeps({
+          db: cronDb,
+          userId: 'local-user',
+          ydcClient: await createYdcClient(),
+          jev: createJev(new TypeSafeClient()),
+          model: getModel(),
+        })
+        const results = await sweepAllProfiles(sweepDeps, profiles)
+        for (const result of results) {
+          if ('error' in result) console.error(`sweep failed for ${result.profileId}: ${result.error}`)
+        }
+      } catch (error) {
+        console.error('cron sweep failed:', error)
+      }
+    },
+    { tz: 'UTC' },
+  )
 }
 
 export default {

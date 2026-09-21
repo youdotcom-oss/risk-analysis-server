@@ -8,6 +8,8 @@ export function getModel() {
   if (!process.env.OPENROUTER_API_KEY) {
     throw new Error('OPENROUTER_API_KEY is required for the sweep model')
   }
-  const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
+  const openrouter = createOpenRouter({
+    apiKey: process.env.OPENROUTER_API_KEY,
+  })
   return openrouter.chat(process.env.RISK_MODEL ?? 'qwen/qwen3.8-27b')
 }

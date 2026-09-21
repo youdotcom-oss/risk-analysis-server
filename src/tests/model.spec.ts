@@ -46,7 +46,12 @@ describe('getModel', () => {
       return new Response(
         JSON.stringify({
           id: 'gen-1',
-          choices: [{ message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+          choices: [
+            {
+              message: { role: 'assistant', content: 'ok' },
+              finish_reason: 'stop',
+            },
+          ],
           usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
         }),
         { status: 200, headers: { 'content-type': 'application/json' } },

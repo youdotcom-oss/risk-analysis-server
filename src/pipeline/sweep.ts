@@ -70,7 +70,13 @@ export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
     triage: (profile, highlights) => triageThreat(args.jev, profile, highlights),
     deepDive: async (profile) =>
       await deepDive(
-        { model: args.model, client: await resolveClient(), jev: args.jev, db: args.db, userId: args.userId },
+        {
+          model: args.model,
+          client: await resolveClient(),
+          jev: args.jev,
+          db: args.db,
+          userId: args.userId,
+        },
         profile,
       ),
   }
@@ -120,7 +126,10 @@ export async function sweepAllProfiles(deps: SweepDeps, profiles: ProfileRecord[
       batch.map(async (p) => {
         const index = profiles.indexOf(p)
         try {
-          results[index] = { profileId: p.id, outcome: await runSweep(deps, p) }
+          results[index] = {
+            profileId: p.id,
+            outcome: await runSweep(deps, p),
+          }
         } catch (error) {
           results[index] = {
             profileId: p.id,
