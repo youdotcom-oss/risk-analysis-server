@@ -157,8 +157,12 @@ describe('buildMcpServer', () => {
        VALUES ('r1', 'local-user', 'p1', 'critical', '<p>port strike</p>', $now)`,
     ).run({ now: Date.now() })
     db.query(
+      `INSERT INTO risk_profiles (id, user_id, title, locations, policy_triggers, updated_at)
+       VALUES ('p2', 'other-user', 'Other tenant ports', '[]', '[]', $now)`,
+    ).run({ now: Date.now() })
+    db.query(
       `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, created_at)
-       VALUES ('r0', 'other-user', 'p1', 'low', '<p>someone else</p>', $now)`,
+       VALUES ('r0', 'other-user', 'p2', 'low', '<p>someone else</p>', $now)`,
     ).run({ now: Date.now() })
 
     const latest = await client.callTool({ name: 'get_risk_report', arguments: {} })
