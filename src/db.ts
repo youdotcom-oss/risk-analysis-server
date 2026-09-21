@@ -60,6 +60,9 @@ CREATE TABLE IF NOT EXISTS sweep_tasks (
 export function openDb(path: string): Database {
   const db = new Database(path, { strict: true })
   db.run('PRAGMA journal_mode = WAL;')
+  // Multi-process writes are the norm (stdio session + HTTP service share one
+  // file): wait on a held lock instead of failing with SQLITE_BUSY instantly.
+  db.run('PRAGMA busy_timeout = 5000;')
   db.run(MIGRATION)
   // In-place migration for DBs created before sweep_schedule existed.
   // Only swallow the duplicate-column case: SQLITE_BUSY or anything else
