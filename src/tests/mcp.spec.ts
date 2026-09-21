@@ -86,14 +86,14 @@ describe('buildMcpServer', () => {
       name: 'set_risk_profile',
       arguments: { title: 'EU ports', locations: ['Hamburg Port'], triggers: ['strikes'] },
     })
-    const profileId = (JSON.parse((saved.content as [{ text: string }])[0].text) as { id: string }).id
+    const profileId = (JSON.parse((saved.content as unknown as [{ text: string }])[0].text) as { id: string }).id
 
     // Start: returns immediately with a task handle; the sweep is still working.
     const started = await client.callTool({
       name: 'trigger_manual_sweep',
       arguments: { profileId },
     })
-    const handle = JSON.parse((started.content as [{ type: string; text: string }])[0].text) as {
+    const handle = JSON.parse((started.content as unknown as [{ type: string; text: string }])[0].text) as {
       task_id: string
       status: string
     }
@@ -105,7 +105,7 @@ describe('buildMcpServer', () => {
       name: 'trigger_manual_sweep',
       arguments: { task_id: handle.task_id },
     })
-    expect(JSON.parse((working.content as [{ text: string }])[0].text).status).toBe('working')
+    expect(JSON.parse((working.content as unknown as [{ text: string }])[0].text).status).toBe('working')
 
     // Release the sweep; poll serves the completed result.
     releaseSweep({ escalated: true, severity: 'critical' })
@@ -115,7 +115,7 @@ describe('buildMcpServer', () => {
         name: 'trigger_manual_sweep',
         arguments: { task_id: handle.task_id },
       })
-      finalText = (polled.content as [{ text: string }])[0].text
+      finalText = (polled.content as unknown as [{ text: string }])[0].text
       if (!JSON.parse(finalText).status || JSON.parse(finalText).status === 'completed') break
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
