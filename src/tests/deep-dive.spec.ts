@@ -318,10 +318,12 @@ describe('retrieveAndScore', () => {
 
 function stubContentTools() {
   const contentsCalls: { urls: string[] }[] = []
+  const searchInputs: Record<string, unknown>[] = []
   const tools = {
     'you-search': {
       inputSchema: jsonSchema({ type: 'object' }),
-      async execute() {
+      async execute(input: Record<string, unknown>) {
+        searchInputs.push(input)
         return {
           content: [
             {
@@ -360,7 +362,7 @@ function stubContentTools() {
       },
     },
   }
-  return { tools, contentsCalls }
+  return { tools, contentsCalls, searchInputs }
 }
 
 function jevForDeepDive(relevancyScore: number) {
@@ -387,7 +389,7 @@ const response = { id: 'mock-1', timestamp: new Date(), modelId: 'mock' }
 
 describe('deepDive', () => {
   test('runs the full pipeline: proposal loop, retrieval, scoring, contents, synthesis', async () => {
-    const { tools, contentsCalls } = stubContentTools()
+    const { tools, contentsCalls, searchInputs } = stubContentTools()
     const db = openDb(tempDbPath())
     const model = new MockLanguageModelV4({
       doGenerate: [
@@ -454,6 +456,9 @@ describe('deepDive', () => {
     expect(result.reportMarkdown).toContain('Executive briefing.')
     // contents fetched for the scored result's URL
     expect(contentsCalls).toEqual([{ urls: ['https://hamburg.example/news'] }])
+    // raw profile triggers run as deterministic Stage-3 queries (knowledge
+    // providers match fact-shaped triggers the model may not propose)
+    expect(searchInputs.some((input) => input.query === 'strike action')).toBe(true)
     // utility persisted
     const row = db
       .query<{ score: number }, [string]>('SELECT score FROM source_utility WHERE domain = ?')

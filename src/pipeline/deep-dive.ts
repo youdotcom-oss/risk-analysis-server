@@ -228,7 +228,11 @@ export async function deepDive(
   deps: DeepDiveDeps,
   profile: ProfileRecordLike,
 ): Promise<{ severity: string; reportMarkdown: string; knowledgeHits: number }> {
-  const queries = await proposeQueries(deps, profile)
+  const proposed = await proposeQueries(deps, profile)
+  // Raw profile triggers run verbatim as deterministic Stage-3 queries:
+  // knowledge providers match fact-shaped triggers ("TSMC revenue latest
+  // quarter" -> licensed financials) that the model may not propose.
+  const queries = [...new Set([...proposed, ...profile.triggers])]
   const scored = await retrieveAndScore(deps, queries, profile)
   const top = topScored(scored)
   const contents = await fetchContents(
