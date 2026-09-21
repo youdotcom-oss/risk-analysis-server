@@ -23,7 +23,20 @@
   ],
   "bin": "bin/stdio.js",
   "type": "module",
+  "main": "./src/server.ts",
+  "exports": {
+    ".": "./src/server.ts",
+    "./server": "./src/server.ts",
+    "./mcp": "./src/mcp.ts",
+    "./pipeline": "./src/pipeline/sweep.ts",
+    "./pipeline/deep-dive": "./src/pipeline/deep-dive.ts",
+    "./db": "./src/db.ts",
+    "./services/you": "./src/services/you.ts",
+    "./services/jev": "./src/services/jev.ts",
+    "./model": "./src/model.ts"
+  },
   "files": [
+    "src",
     "bin/stdio.js",
     "server.json"
   ],
