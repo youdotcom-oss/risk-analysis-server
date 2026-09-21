@@ -226,10 +226,12 @@ describe('retrieveAndScore', () => {
   })
 
   test('normalizes the real you-search shape (nested results.web, description)', async () => {
+    const searchInputs: Record<string, unknown>[] = []
     const tools = {
       'you-search': {
         inputSchema: jsonSchema({ type: 'object' }),
-        async execute() {
+        async execute(input: Record<string, unknown>) {
+          searchInputs.push(input)
           return {
             content: [
               {
@@ -274,6 +276,8 @@ describe('retrieveAndScore', () => {
       profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
     }
     const scored = await retrieveAndScore(deps, ['Rotterdam port strike'])
+    // Stage 3 must request knowledge — these are the results that reach synthesis
+    expect(searchInputs.every((input) => input.knowledge === 'core')).toBe(true)
     // knowledge fact (no url) is retained as a scoring candidate
     expect(scored.map((r) => r.url)).toEqual(['https://maritime-executive.com/strike', 'https://news.example/port', ''])
     expect(scored[2]?.snippet).toContain('14.6M TEU')

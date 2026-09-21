@@ -89,7 +89,13 @@ export async function retrieveAndScore(
 
   const rawResults = await Promise.all(
     queries.map(async (query) => {
-      const output = await search.execute({ query }, undefined as unknown as Parameters<typeof search.execute>[1])
+      // Stage 3 results reach synthesis — request licensed knowledge facts
+      // alongside web/news (url-less knowledge items flow through the
+      // normalizer and into synthesis; they are excluded from crawling).
+      const output = await search.execute(
+        { query, knowledge: 'core' },
+        undefined as unknown as Parameters<typeof search.execute>[1],
+      )
       const text =
         (output as { content?: { type: string; text?: string }[] }).content?.find((block) => block.type === 'text')
           ?.text ?? '[]'

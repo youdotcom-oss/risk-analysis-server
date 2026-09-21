@@ -37,8 +37,9 @@ async function fetchHighlights(client: Pick<MCPClient, 'tools'>, profile: Profil
   const tools = await client.tools()
   const search = tools['you-search']
   if (!search) throw new Error('you-search tool not exposed by the You.com MCP server')
+  // Stage 1 decides escalation — request licensed knowledge facts here too
   const output = await search.execute(
-    { query: fallbackQuery(profile), extraction: 'highlights' },
+    { query: fallbackQuery(profile), extraction: 'highlights', knowledge: 'core' },
     undefined as unknown as Parameters<typeof search.execute>[1],
   )
   const text =

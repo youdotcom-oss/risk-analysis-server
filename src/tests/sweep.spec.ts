@@ -150,10 +150,12 @@ describe('buildSweepDeps', () => {
        VALUES ('p1', 'local-user', 'EU port operations', '["Hamburg Port"]', '["strikes"]', $now)`,
     ).run({ now: Date.now() })
 
+    const searchInputs: Record<string, unknown>[] = []
     const tools = {
       'you-search': {
         inputSchema: jsonSchema({ type: 'object' }),
-        async execute() {
+        async execute(input: Record<string, unknown>) {
+          searchInputs.push(input)
           return {
             content: [
               {
@@ -235,6 +237,10 @@ describe('buildSweepDeps', () => {
       .get()
     expect(report?.severity).toBe('critical')
     expect(report?.content_html).toContain('Briefing')
+    // Stage 1 highlights triage must request knowledge too — the escalate
+    // decision deserves the same licensed facts as everything downstream.
+    expect(searchInputs.length).toBeGreaterThan(0)
+    expect(searchInputs.every((input) => input.knowledge === 'core')).toBe(true)
     db.close()
   })
 })
