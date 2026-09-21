@@ -61,8 +61,14 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
     async (_args, ctx) => {
       // TEMP probe: what client capabilities does the host actually declare?
       // Drives the decision to wire task-augmented sweeps (SEP-2663).
-      const envelope = (ctx as { mcpReq?: { envelope?: unknown } }).mcpReq?.envelope
-      console.error('[caps]', JSON.stringify(envelope ?? null))
+      const negotiated = (server as unknown as { getClientCapabilities?: () => unknown }).getClientCapabilities?.()
+      console.error(
+        '[caps]',
+        JSON.stringify({
+          negotiated: negotiated ?? null,
+          envelope: (ctx as { mcpReq?: { envelope?: unknown } }).mcpReq?.envelope ?? null,
+        }),
+      )
       const profiles = getActiveProfiles(deps.db, deps.userId)
       return {
         content: [{ type: 'text', text: JSON.stringify(profiles) }],
