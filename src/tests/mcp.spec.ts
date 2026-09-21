@@ -119,7 +119,8 @@ describe('buildMcpServer', () => {
       if (!JSON.parse(finalText).status || JSON.parse(finalText).status === 'completed') break
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
-    const outcome = JSON.parse(finalText) as { escalated: boolean; severity: string }
+    const outcome = JSON.parse(finalText) as { escalated: boolean; severity: string; status?: string }
+    expect(outcome.status).toBe('completed')
     expect(outcome.escalated).toBe(true)
     expect(outcome.severity).toBe('critical')
     await client.close()

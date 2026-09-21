@@ -102,7 +102,10 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
           }
         }
         if (task.status === 'completed') {
-          return { content: [{ type: 'text', text: task.result_json ?? '{}' }] }
+          const outcome = JSON.parse(task.result_json ?? '{}') as Record<string, unknown>
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ status: 'completed', ...outcome }) }],
+          }
         }
         if (task.status === 'failed') {
           return {
