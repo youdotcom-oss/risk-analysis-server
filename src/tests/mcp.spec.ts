@@ -38,6 +38,7 @@ describe('buildMcpServer', () => {
     await client.connect(clientTransport)
     const tools = await client.listTools()
     expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
+      'get_risk_report',
       'list_risk_profiles',
       'set_risk_profile',
       'trigger_manual_sweep',
@@ -141,6 +142,42 @@ describe('buildMcpServer', () => {
     )
     await client.close()
     await server.close()
+  })
+
+  test('get_risk_report serves latest and by-id; tenant-scoped', async () => {
+    const { db, client, serverTransport, clientTransport, server } = connect()
+    await server.connect(serverTransport)
+    await client.connect(clientTransport)
+    db.query(
+      `INSERT INTO risk_profiles (id, user_id, title, locations, policy_triggers, updated_at)
+       VALUES ('p1', 'local-user', 'EU ports', '[]', '[]', $now)`,
+    ).run({ now: Date.now() })
+    db.query(
+      `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, created_at)
+       VALUES ('r1', 'local-user', 'p1', 'critical', '<p>port strike</p>', $now)`,
+    ).run({ now: Date.now() })
+    db.query(
+      `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, created_at)
+       VALUES ('r0', 'other-user', 'p1', 'low', '<p>someone else</p>', $now)`,
+    ).run({ now: Date.now() })
+
+    const latest = await client.callTool({ name: 'get_risk_report', arguments: {} })
+    const latestPayload = JSON.parse((latest.content as unknown as [{ text: string }])[0].text) as {
+      severity: string
+      report_html: string
+    }
+    expect(latestPayload.severity).toBe('critical')
+    expect(latestPayload.report_html).toContain('port strike')
+
+    const byId = await client.callTool({ name: 'get_risk_report', arguments: { report_id: 'r0' } })
+    expect(byId.isError ?? false).toBe(true) // other tenant's report is invisible
+
+    const missing = await client.callTool({ name: 'get_risk_report', arguments: { report_id: 'nope' } })
+    expect(missing.isError ?? false).toBe(true)
+
+    await client.close()
+    await server.close()
+    db.close()
   })
 
   test('ui://risk-report/latest serves the latest stored HTML', async () => {

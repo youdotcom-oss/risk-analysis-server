@@ -52,6 +52,7 @@ describe('e2e: real client through the http entry (in-process)', () => {
     // tools/list works through the full auth -> factory -> server chain
     const tools = await client.listTools()
     expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
+      'get_risk_report',
       'list_risk_profiles',
       'set_risk_profile',
       'trigger_manual_sweep',
@@ -114,6 +115,7 @@ describe('e2e: stdio spawned process', () => {
 
     const tools = await client.listTools()
     expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
+      'get_risk_report',
       'list_risk_profiles',
       'set_risk_profile',
       'trigger_manual_sweep',

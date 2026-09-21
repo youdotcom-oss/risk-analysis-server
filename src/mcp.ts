@@ -156,6 +156,52 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
     },
   )
 
+  server.registerTool(
+    'get_risk_report',
+    {
+      title: 'Get Risk Report',
+      description:
+        'Fetch a completed risk briefing. Defaults to the latest report; pass report_id to fetch a specific one. ' +
+        'Returns the briefing as HTML — summarize it for the user rather than echoing it verbatim.',
+      inputSchema: z.object({ report_id: z.string().min(1).optional() }),
+    },
+    async ({ report_id }) => {
+      const report = report_id
+        ? deps.db
+            .query<{ content_html: string; profile_title: string; severity: string }, [string, string]>(
+              `SELECT r.content_html, p.title AS profile_title, r.severity
+                 FROM risk_reports r JOIN risk_profiles p ON p.id = r.profile_id
+                WHERE r.id = ? AND r.user_id = ?`,
+            )
+            .get(report_id, deps.userId)
+        : deps.db
+            .query<{ content_html: string; profile_title: string; severity: string }, [string]>(
+              `SELECT r.content_html, p.title AS profile_title, r.severity
+                 FROM risk_reports r JOIN risk_profiles p ON p.id = r.profile_id
+                WHERE r.user_id = ? ORDER BY r.created_at DESC LIMIT 1`,
+            )
+            .get(deps.userId)
+      if (!report) {
+        return {
+          isError: true,
+          content: [{ type: 'text', text: report_id ? `No report ${report_id}.` : 'No reports yet.' }],
+        }
+      }
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              severity: report.severity,
+              profile: report.profile_title,
+              report_html: report.content_html,
+            }),
+          },
+        ],
+      }
+    },
+  )
+
   server.registerResource('risk-report-latest', REPORT_URI, { mimeType: APP_MIME_TYPE }, async () => {
     const report = deps.db
       .query<{ content_html: string }, [string]>(
