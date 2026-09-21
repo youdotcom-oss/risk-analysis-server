@@ -53,17 +53,23 @@ async function fetchHighlights(client: Pick<MCPClient, 'tools'>, profile: Profil
 
 export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client'> & {
   db: Database
-  ydcClient: Pick<MCPClient, 'tools'>
+  /** The You.com MCP client, or a promise for it (lazy connect keeps startup
+   *  independent of the upstream server's availability). */
+  ydcClient: Pick<MCPClient, 'tools'> | Promise<Pick<MCPClient, 'tools'>>
 }
 
 /** Compose the real SweepDeps: Stage 1 highlight triage + the full deep dive. */
 export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
+  const resolveClient = async () => await args.ydcClient
   return {
     db: args.db,
-    fetchHighlights: (profile) => fetchHighlights(args.ydcClient, profile),
+    fetchHighlights: async (profile) => fetchHighlights(await resolveClient(), profile),
     triage: (profile, highlights) => triageThreat(args.jev, profile, highlights),
-    deepDive: (profile) =>
-      deepDive({ model: args.model, client: args.ydcClient, jev: args.jev, db: args.db, userId: args.userId }, profile),
+    deepDive: async (profile) =>
+      await deepDive(
+        { model: args.model, client: await resolveClient(), jev: args.jev, db: args.db, userId: args.userId },
+        profile,
+      ),
   }
 }
 
