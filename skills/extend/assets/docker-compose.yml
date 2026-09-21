@@ -1,6 +1,11 @@
 services:
   risk-analysis-server:
-    build: .
+    # Repo-root context: run from the checkout root with -f
+    # skills/extend/assets/docker-compose.yml (the Dockerfile copies
+    # package.json, bun.lock, and src from the repo root).
+    build:
+      context: ../..
+      dockerfile: skills/extend/assets/Dockerfile
     ports:
       - "3000:3000"
     environment:

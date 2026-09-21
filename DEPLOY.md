@@ -32,9 +32,12 @@ bun src/server.ts
 
 ## Docker
 
+The container recipe lives in `skills/extend/assets/` (Dockerfile +
+docker-compose.yml, also installed by the `extend` skill):
+
 ```sh
 export RISK_JWT_SECRET=... YDC_API_KEY=... TYPESAFE_API_KEY=... OPENROUTER_API_KEY=...
-docker compose up --build
+docker compose -f skills/extend/assets/docker-compose.yml up --build
 ```
 
 - Multi-stage `oven/bun:1-alpine` image; SQLite persisted on the `risk-data`
@@ -46,7 +49,8 @@ docker compose up --build
 
 ## Fly.io / Railway / VPS
 
-Any runtime that runs the image works: deploy the Dockerfile, set
+Any runtime that runs the image works: deploy
+`skills/extend/assets/Dockerfile`, set
 `RISK_JWT_SECRET`, `RISK_ALLOWED_HOSTS` (public hostname), `RISK_CRON_SCHEDULE`,
 `YDC_API_KEY`, `TYPESAFE_API_KEY`, and `OPENROUTER_API_KEY`, and mount a volume
 at `/data`.

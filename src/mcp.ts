@@ -42,14 +42,18 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
       description:
         'Create or update a monitored risk profile: a title, the geographic locations to watch, and the policy triggers (events/KPIs) that matter.',
       inputSchema: z.object({
+        id: z.string().uuid().optional(),
         title: z.string().min(1),
         locations: z.array(z.string()).min(1),
         triggers: z.array(z.string()),
       }),
     },
-    async ({ title, locations, triggers }) => {
+    async ({ id, title, locations, triggers }) => {
       const profile = {
-        id: randomUUID(),
+        // Reuse the id when provided: a real update path (the ON CONFLICT
+        // branch of saveProfile) instead of minting duplicate rows —
+        // 'Create or update' now matches the tool's behavior.
+        id: id ?? randomUUID(),
         userId: deps.userId,
         title,
         locations,
@@ -87,7 +91,7 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
       description:
         'Start a risk sweep for one of your risk profiles, or poll a running sweep. Two entry points: ' +
         'call with profileId to START — the tool returns immediately with a task_id and the sweep runs in ' +
-        'the background (typical duration 60-120s). Then POLL by calling again with task_id until status ' +
+        'the background (typically 2-3 minutes). Then POLL by calling again with task_id until status ' +
         'is completed or failed; poll roughly every 20 seconds.',
       inputSchema: z.object({
         profileId: z.string().min(1).optional(),

@@ -367,3 +367,35 @@ describe('set_sweep_schedule without a wired scheduler', () => {
     db.close()
   })
 })
+
+describe('set_risk_profile with an existing id', () => {
+  test('updates in place instead of minting a duplicate row', async () => {
+    const db = openDb(tempDbPath())
+    const server = buildMcpServer({
+      db,
+      userId: 'local-user',
+      sweepRunner: async () => ({ escalated: false }),
+    })
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair()
+    const client = new Client({ name: 'test-client', version: '0.0.0' })
+    await server.connect(serverTransport)
+    await client.connect(clientTransport)
+    const created = await client.callTool({
+      name: 'set_risk_profile',
+      arguments: { title: 'EU ports', locations: ['Hamburg Port'], triggers: ['strikes'] },
+    })
+    const id = (JSON.parse((created.content as unknown as [{ text: string }])[0].text) as { id: string }).id
+    const updated = await client.callTool({
+      name: 'set_risk_profile',
+      arguments: { title: 'EU ports', locations: ['Hamburg Port', 'Rotterdam'], triggers: ['strikes'], id },
+    })
+    const payload = JSON.parse((updated.content as unknown as [{ text: string }])[0].text) as { id: string }
+    expect(payload.id).toBe(id)
+    const profiles = getActiveProfiles(db, 'local-user')
+    expect(profiles).toHaveLength(1)
+    expect(profiles[0]?.locations).toEqual(['Hamburg Port', 'Rotterdam'])
+    await client.close()
+    await server.close()
+    db.close()
+  })
+})

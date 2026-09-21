@@ -43,7 +43,7 @@ briefing — so you can verify knowledge influenced the result. Every Stage-3 se
 with `knowledge: "core"`: fact-shaped queries (prices, rates, revenues,
 weather) return licensed answers in `results.knowledge` (Fiscal.ai, S&P
 Global, BLS, EIA, AccuWeather) that flow into the briefing **with
-provenance** — provider attribution and an `as_of` date, so the briefing
+provenance** — provider attribution and an `asOf` date, so the briefing
 can say what a fact was true as of; news-shaped
 queries simply omit the key. The second prompt is the most likely to
 show knowledge at work — TSMC revenue, electricity price, and interest
@@ -57,7 +57,7 @@ Federal Reserve).
 | `list_risk_profiles` | List active profiles with ids. Call first — don't recreate. |
 | `set_risk_profile` | Create/update a profile: title, locations, triggers. |
 | `trigger_manual_sweep` | **Fire-and-poll**: call with `profileId` → instant `task_id`; call with `task_id` every ~20s until `completed`/`failed` (sweeps take 2–3 min). |
-| `get_risk_report` | Fetch the latest (or by-id) briefing as GFM Markdown, plus a `knowledge` array carrying each licensed fact's `attribution` and `as_of`. |
+| `get_risk_report` | Fetch the latest (or by-id) briefing as GFM Markdown, plus a `knowledge` array carrying each licensed fact's `attribution` and `asOf`. |
 | `set_sweep_schedule` | Attach a cron expression to a profile (or omit to clear). |
 
 The sweep pipeline: Stage 1 surface-search triage (Jev `noul`) → Stage 2

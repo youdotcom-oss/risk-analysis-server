@@ -15,7 +15,7 @@ compatibility: Requires Bun >= 1.2.21, an OPENROUTER_API_KEY for the default swe
 | HTTP auth, tenants, cron | `src/server.ts` |
 | Sweep orchestration (triage → deep dive) | `src/pipeline/sweep.ts` |
 | Query proposal / retrieval / synthesis | `src/pipeline/deep-dive.ts` |
-| Report HTML shell + Markdown rendering | `src/pipeline/report.ts` |
+| Report Markdown assembly | `src/pipeline/report.ts` |
 | You.com access (search/contents tools) | `src/services/you.ts` |
 | Jev gates (triage, query validation, scoring) | `src/services/jev.ts` |
 | Sweep model selection (provider, model id) | `src/model.ts` |

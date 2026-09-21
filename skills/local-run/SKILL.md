@@ -10,7 +10,6 @@ compatibility: Requires Bun >= 1.2.21, an OPENROUTER_API_KEY (sweep model), YDC_
 ## Steps
 
 1. `bun add @youdotcom-oss/risk-analysis-server`
-   (note the spelling: `analysis` — the published package name has this typo).
 2. Set the three API keys: `OPENROUTER_API_KEY` (sweep model — required;
    `RISK_MODEL` selects the model, default `qwen/qwen3.8-27b`), `YDC_API_KEY`
    (You.com), and `TYPESAFE_API_KEY` (Jev).
