@@ -61,7 +61,10 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
     async (_args, ctx) => {
       // TEMP probe: what client capabilities does the host actually declare?
       // Drives the decision to wire task-augmented sweeps (SEP-2663).
-      const negotiated = (server as unknown as { getClientCapabilities?: () => unknown }).getClientCapabilities?.()
+      const negotiated =
+        (
+          server as unknown as { server?: { getClientCapabilities?: () => unknown } }
+        ).server?.getClientCapabilities?.() ?? null
       console.error(
         '[caps]',
         JSON.stringify({
