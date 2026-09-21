@@ -53,7 +53,8 @@ confirm a `serverInfo` response comes back.
   not source `~/.zshrc` — put the API keys in `~/.zprofile` or the config's
   `env` block. A cwd-relative `RISK_DB_PATH` is unnecessary: the default
   database path is already stable and writable.
-- A manual sweep takes ~60–120s (agentic search loop + judgment gates +
-  synthesis through the cloud model); the tool call stays open until done.
+- A manual sweep takes ~2–3 minutes (agentic search loop + judgment gates +
+  synthesis through the cloud model); it runs fire-and-poll — the start call
+  returns immediately and you poll (see the `drive-sweeps` skill).
 - Developing this repo itself? Clone it and run `bun src/stdio.ts` from the
   checkout instead — that path is for contributors, not consumers.

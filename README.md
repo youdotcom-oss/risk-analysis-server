@@ -37,7 +37,9 @@ Paste one of these into your client after connecting:
 3. > Create a risk profile "Gulf AI infrastructure" watching Saudi Arabia with these triggers: crude oil price today, weather in Riyadh, Gulf shipping and infrastructure security, chip export policy changes. Then run a manual sweep for it and summarize the report when done.
 
 The tool descriptions carry the protocol (start → poll until
-`completed`/`failed`); expect ~2–3 minutes. Every Stage-3 search runs
+`completed`/`failed`); expect ~2–3 minutes. The completed outcome includes
+`knowledgeHits` — the count of licensed knowledge facts that reached the
+briefing — so you can verify knowledge influenced the result. Every Stage-3 search runs
 with `knowledge: "core"`: fact-shaped queries (prices, rates, revenues,
 weather) return licensed answers in `results.knowledge` (Fiscal.ai, S&P
 Global, BLS, EIA, AccuWeather) that flow into the briefing **with
@@ -55,7 +57,7 @@ Federal Reserve).
 | `list_risk_profiles` | List active profiles with ids. Call first — don't recreate. |
 | `set_risk_profile` | Create/update a profile: title, locations, triggers. |
 | `trigger_manual_sweep` | **Fire-and-poll**: call with `profileId` → instant `task_id`; call with `task_id` every ~20s until `completed`/`failed` (sweeps take 2–3 min). |
-| `get_risk_report` | Fetch the latest (or by-id) briefing as GFM Markdown. |
+| `get_risk_report` | Fetch the latest (or by-id) briefing as GFM Markdown, plus a `knowledge` array carrying each licensed fact's `attribution` and `as_of`. |
 | `set_sweep_schedule` | Attach a cron expression to a profile (or omit to clear). |
 
 The sweep pipeline: Stage 1 surface-search triage (Jev `noul`) → Stage 2
@@ -106,7 +108,7 @@ HTTP + cron ───┘        │                            └─► You.com
 
 ## For developers
 
-This repo ships three ways to consume it, each with a skill that pins its
+This repo ships four ways to consume it, each with a skill that pins its
 contract. Install them into your AI coding agent with the Skills CLI:
 
 ```sh

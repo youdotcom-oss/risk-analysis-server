@@ -7,7 +7,7 @@ compatibility: Requires an MCP client connection to the risk-analysis server (st
 
 # Drive risk sweeps from a chat client
 
-The server exposes four tools. Work them in this order.
+The server exposes five tools. Work them in this order.
 
 ## The tool set
 
@@ -16,7 +16,8 @@ The server exposes four tools. Work them in this order.
 | `list_risk_profiles` | List active profiles with ids. **Always call this first** — do not recreate profiles that already exist. |
 | `set_risk_profile` | Create or update a profile: `title`, `locations`, `triggers`. Returns the full profile JSON including `id`. |
 | `trigger_manual_sweep` | Two entry points (see below). |
-| `get_risk_report` | Fetch a completed briefing: defaults to latest, or pass `report_id`. Returns GFM Markdown — summarize it, don't echo it. |
+| `get_risk_report` | Fetch a completed briefing: defaults to latest, or pass `report_id`. Returns GFM Markdown plus a `knowledge` array (licensed facts with `attribution`/`asOf`) — summarize it, don't echo it. |
+| `set_sweep_schedule` | Attach a cron expression to a profile (`"0 9 * * 1"`); omit the schedule to clear. Response names its scope: `durable` (server is a supervised service, cron keeps firing) or `session` (fires only while this client is connected). |
 
 ## The sweep protocol (two calls)
 
