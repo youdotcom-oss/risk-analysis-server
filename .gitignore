@@ -92,3 +92,6 @@ tmp-defaultdbpath/
 
 # Generated artifacts (view shell embed)
 src/generated/
+
+# Local drafts
+blog-outline.md
