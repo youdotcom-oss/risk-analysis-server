@@ -118,6 +118,51 @@ describe('retrieveAndScore', () => {
     } as unknown as SystemOneCaller
   }
 
+  // Regression: the real You.com MCP you-search returns
+  // { results: { web: [...] } } with `description` (not a flat array with
+  // `snippet`). retrieveAndScore once iterated the raw object and crashed
+  // with "TypeError: {} is not iterable".
+  test('normalizes the real you-search shape (nested results.web, description)', async () => {
+    const tools = {
+      'you-search': {
+        inputSchema: jsonSchema({ type: 'object' }),
+        async execute() {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  results: {
+                    web: [
+                      {
+                        url: 'https://maritime-executive.com/strike',
+                        title: 'Port strike',
+                        description: 'Dutch union sets national strike',
+                      },
+                    ],
+                    news: [{ url: 'https://news.example/port', description: 'Rotterdam delays' }],
+                  },
+                }),
+              },
+            ],
+          }
+        },
+      },
+    }
+    const db = openDb(tempDbPath())
+    const deps = {
+      client: { tools: () => Promise.resolve(tools) } as never,
+      jev: createJev(jevStub([2.5])),
+      db,
+      userId: 'local-user',
+    }
+    const scored = await retrieveAndScore(deps, ['Rotterdam port strike'])
+    expect(scored.map((r) => r.url)).toEqual(['https://maritime-executive.com/strike', 'https://news.example/port'])
+    // description promoted to snippet
+    expect(scored[0]?.snippet).toBe('Dutch union sets national strike')
+    db.close()
+  })
+
   test('runs queries concurrently, dedupes by URL, scores, and persists utility', async () => {
     const { tools, searchCalls } = stubTools()
     const client = { tools: () => Promise.resolve(tools) } as never

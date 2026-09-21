@@ -19,6 +19,46 @@ export function createYdcClient(): Promise<MCPClient> {
   return createMCPClient({ transport: buildYdcTransport() })
 }
 
+export type NormalizedSearchResult = { url: string; title: string; description: string }
+
+/**
+ * Parse a you-search text payload into the fields downstream consumers need.
+ * The real upstream shape is { results: { web: [...], news?: [...] } } with
+ * `description`; the legacy/unit-stub shape was a flat array with `snippet`.
+ * MINIMAL: bespoke parser over two known shapes; structuredContent is the
+ * upgrade path if the upstream schema settles.
+ */
+export function parseSearchResults(text: string): NormalizedSearchResult[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return text === '' ? [] : []
+  }
+  const collect = (items: unknown): NormalizedSearchResult[] =>
+    (Array.isArray(items) ? items : []).flatMap((item) => {
+      const record = item as { url?: unknown; title?: unknown; snippet?: unknown; description?: unknown }
+      if (typeof record.url !== 'string' || record.url === '') return []
+      return [
+        {
+          url: record.url,
+          title: typeof record.title === 'string' ? record.title : '',
+          description:
+            typeof record.description === 'string'
+              ? record.description
+              : typeof record.snippet === 'string'
+                ? record.snippet
+                : '',
+        },
+      ]
+    })
+  const resultsBlock = (parsed as { results?: unknown }).results
+  if (resultsBlock && typeof resultsBlock === 'object' && !Array.isArray(resultsBlock)) {
+    return Object.values(resultsBlock as Record<string, unknown>).flatMap(collect)
+  }
+  return collect(Array.isArray(resultsBlock) ? resultsBlock : parsed)
+}
+
 export type DeepDiveDeps = {
   client: Pick<MCPClient, 'tools'>
   jev: Jev
@@ -67,7 +107,19 @@ export async function createDeepDiveTools(deps: DeepDiveDeps): Promise<Record<st
             ],
           }
         }
-        return search.execute({ ...input, knowledge: 'core' }, options as Parameters<typeof search.execute>[1])
+        // Project to the fields the proposal model actually needs (url,
+        // title, description) instead of forwarding full highlight payloads —
+        // full text across 5 steps once exceeded a 131k context (150k tokens).
+        const output = (await search.execute(
+          { ...input, knowledge: 'core' },
+          options as Parameters<typeof search.execute>[1],
+        )) as { content?: { type: string; text?: string }[] }
+        const compact = output.content
+          ?.filter((block) => block.type === 'text')
+          .flatMap((block) => parseSearchResults(block.text ?? ''))
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ results: compact }) }],
+        }
       },
     },
   }

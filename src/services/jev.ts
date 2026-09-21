@@ -80,18 +80,26 @@ export async function scoreResults(
   profile: RiskProfile,
   results: { url: string; snippet: string }[],
 ): Promise<ScoredResult[]> {
+  // MINIMAL: blunt caps keep the systemOne payload within the TypeSafe
+  // input limit (live runs hit 400 max_tokens_exceeded with ~100 results).
+  // Upgrade path: batched scoring rounds with utility-ranked prioritization.
+  const MAX_SCORED_RESULTS = 30
+  const capped = results.slice(0, MAX_SCORED_RESULTS).map((result) => ({
+    ...result,
+    snippet: result.snippet.slice(0, 200),
+  }))
   const questions = Object.fromEntries(
-    results.map((result, index) => [
+    capped.map((result, index) => [
       `r${index}`,
       score(`How relevant is the result "${result.snippet}" (from ${result.url}) to the profile?`, RELEVANCY_RUBRIC),
     ]),
   )
   const result = await jev.systemOne({
-    state: { profile, results },
+    state: { profile, results: capped },
     questions,
   })
   return results.map((item, index) => ({
     url: item.url,
-    score: answerAt(result.answers as Record<string, { score: number }>, `r${index}`).score,
+    score: index < capped.length ? answerAt(result.answers as Record<string, { score: number }>, `r${index}`).score : 1,
   }))
 }

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { MCPClient } from '@ai-sdk/mcp'
 import { completeSweepTask, failSweepTask } from '../db.ts'
 import { triageThreat } from '../services/jev.ts'
+import { parseSearchResults } from '../services/you.ts'
 import type { DeepDiveDeps } from './deep-dive.ts'
 import { deepDive, fallbackQuery } from './deep-dive.ts'
 
@@ -43,12 +44,14 @@ async function fetchHighlights(client: Pick<MCPClient, 'tools'>, profile: Profil
       ?.filter((block) => block.type === 'text')
       .map((block) => block.text)
       .join('\n') ?? ''
-  try {
-    const parsed = JSON.parse(text) as { results?: { snippet?: string }[] }
-    return (parsed.results ?? []).map((item) => item.snippet ?? '').filter((snippet) => snippet !== '')
-  } catch {
-    return text === '' ? [] : [text]
-  }
+  // Compact projection: "title — description" per result. The legacy flat
+  // shape + raw-text fallback once sent the entire payload to Gate 1
+  // (TypeSafe 400 max_tokens_exceeded on live runs).
+  const MINIMAL_HIGHLIGHTS = 40
+  return parseSearchResults(text)
+    .slice(0, MINIMAL_HIGHLIGHTS)
+    .map((item) => [item.title, item.description].filter((part) => part !== '').join(' — '))
+    .filter((highlight) => highlight !== '')
 }
 
 export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client'> & {

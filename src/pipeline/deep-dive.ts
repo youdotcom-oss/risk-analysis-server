@@ -4,7 +4,7 @@ import { choice } from '@typesafe-ai/sdk'
 import { generateText, stepCountIs, type ToolSet } from 'ai'
 import { updateSourceUtility } from '../db.ts'
 import { type Jev, type RiskProfile, scoreResults } from '../services/jev.ts'
-import { createDeepDiveTools } from '../services/you.ts'
+import { createDeepDiveTools, parseSearchResults } from '../services/you.ts'
 import { renderReport } from './report.ts'
 
 export type QueryToolCallStep = {
@@ -87,13 +87,10 @@ export async function retrieveAndScore(deps: RetrieveDeps, queries: string[]): P
       const text =
         (output as { content?: { type: string; text?: string }[] }).content?.find((block) => block.type === 'text')
           ?.text ?? '[]'
-      let parsed: { results?: { url: string; snippet?: string }[] } = {}
-      try {
-        parsed = JSON.parse(text) as { results?: { url: string; snippet?: string }[] }
-      } catch {
-        parsed = {}
-      }
-      return parsed.results ?? []
+      return parseSearchResults(text).map((item) => ({
+        url: item.url,
+        snippet: item.description,
+      }))
     }),
   )
 
@@ -137,6 +134,14 @@ const MAX_CONTENT_URLS = 10
 // chunked map-reduce summarization per page instead of truncation.
 const MAX_CHARS_PER_PAGE = 12_000
 const MAX_CONTENT_CHARS = 100_000
+// Downstream stages (severity gate, synthesis) receive only the top-N scored
+// results, rank-ordered. Full uncapped payloads passed once at ~88k chars and
+// failed other runs at the same size — nondeterministic context overflow.
+const MAX_TOP_RESULTS = 15
+
+function topScored(scored: ScoredResult[], limit = MAX_TOP_RESULTS): ScoredResult[] {
+  return [...scored].sort((a, b) => b.score - a.score).slice(0, limit)
+}
 
 /** Stage 2: run the agentic proposal loop with Jev-gated search tools. */
 async function proposeQueries(deps: DeepDiveDeps, profile: RiskProfile): Promise<string[]> {
@@ -206,12 +211,13 @@ export async function deepDive(
 ): Promise<{ severity: string; contentHtml: string }> {
   const queries = await proposeQueries(deps, profile)
   const scored = await retrieveAndScore(deps, queries)
+  const top = topScored(scored)
   const contents = await fetchContents(
     deps,
-    scored.map((item) => item.url),
+    top.map((item) => item.url),
   )
   const [severity, synthesis] = await Promise.all([
-    assessSeverity(deps.jev, profile, scored),
+    assessSeverity(deps.jev, profile, top),
     generateText({
       model: deps.model,
       system:
@@ -222,7 +228,7 @@ export async function deepDive(
         'No other sections, no HTML.',
       prompt:
         `Profile: ${profile.title}. Locations: ${profile.locations.join(', ')}.\n` +
-        `Scored findings: ${JSON.stringify(scored)}\nFull article contents:\n${contents}`,
+        `Scored findings: ${JSON.stringify(top)}\nFull article contents:\n${contents}`,
     }),
   ])
   const contentHtml = renderReport({
