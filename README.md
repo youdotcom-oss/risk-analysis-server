@@ -21,6 +21,17 @@ Point your client at `bun src/stdio.ts` (or the published bin:
 `bunx @youdotcom-oss/risk-analysis-server`). SQLite lives at
 `~/.local/share/risk-analysis-server/risk.sqlite` by default.
 
+## First run
+
+Paste this into your client after connecting:
+
+> Create a risk profile "PNW data center buildout" watching Oregon, Washington, and California with these triggers: data center moratoriums and permitting pauses, power grid capacity constraints, utility rate increases from data center loads. Then run a manual sweep for it and summarize the report when done.
+
+The tool descriptions carry the protocol (start returns a `task_id`
+immediately; poll with it every ~20s) — no further instruction needed.
+Expect ~2–3 minutes for the sweep; the summary should name a severity, a
+report id, and cite findings with source links.
+
 ## The tools
 
 | Tool | What it does |
@@ -47,6 +58,17 @@ All payloads are budget-capped; results are stored durably in
   readable via `get_risk_report` from any client, any time.
 
 See [DEPLOY.md](./DEPLOY.md) for Docker/Fly/Railway and the full env-var table.
+
+## Resetting local state
+
+Reports, profiles, and sweep tasks live in one SQLite file. To start over:
+
+```sh
+sqlite3 ~/.local/share/risk-analysis-server/risk.sqlite \
+  "DELETE FROM risk_reports; DELETE FROM sweep_tasks; DELETE FROM risk_profiles; DELETE FROM source_utility;"
+```
+
+(Quitting the client first avoids WAL writer contention.)
 
 ## Architecture in one screen
 
