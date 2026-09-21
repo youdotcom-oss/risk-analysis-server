@@ -24,9 +24,11 @@ The server exposes four tools. Work them in this order.
    immediately — the tool does NOT block:
    `{ task_id, status: "working", next: "poll with task_id every ~20s" }`.
 2. **Poll:** call `trigger_manual_sweep` again with `task_id` every ~20
-   seconds. While running: `{ task_id, status: "working" }`. When done:
-   `{ status: "completed", escalated, severity, reportId }` (or an error
-   result with the failure reason).
+   seconds. While running: `{ task_id, status: "working", next: ... }`.
+   When done: `{ status: "completed", escalated, severity, reportId,
+   knowledgeHits }` (or an error result with the failure reason).
+   `knowledgeHits` counts licensed knowledge facts that reached the
+   briefing — 0 is a valid result for news-shaped profiles.
 
 Typical duration is 2-3 minutes (agentic search loop + judgment gates +
 cloud-model synthesis). Never assume a timeout means failure — the sweep
@@ -36,7 +38,8 @@ keeps running server-side; keep polling.
 
 - Call `get_risk_report` (optionally with `report_id` from the outcome) and
   summarize the briefing: severity, key findings with source links, and
-  recommended mitigations.
+  recommended mitigations. Knowledge facts cite their licensed provider
+  and an as-of date — surface those attributions when they appear.
 - Briefings are GFM Markdown — cite the key findings with their source
   links and list the mitigations; the report HTML/iframe era is gone.
 
