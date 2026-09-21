@@ -31,7 +31,7 @@ const profile = {
 function makeDeps(overrides: {
   threatProbability: number
   deepDiveCalls?: unknown[]
-  deepDiveResult?: { severity: string; reportMarkdown: string }
+  deepDiveResult?: { severity: string; reportMarkdown: string; knowledgeHits: number }
 }) {
   const triageCalls: unknown[] = []
   const deepDiveCalls: unknown[] = []
@@ -57,6 +57,7 @@ function makeDeps(overrides: {
           overrides.deepDiveResult ?? {
             severity: 'medium',
             reportMarkdown: 'brief',
+            knowledgeHits: 0,
           }
         )
       },
@@ -115,6 +116,7 @@ describe('sweepAllProfiles', () => {
           escalated: true,
           severity: 'medium',
           reportId: expect.any(String),
+          knowledgeHits: 0,
         },
       },
       { profileId: 'p-bad', error: 'synthesizer down' },
