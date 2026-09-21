@@ -82,8 +82,14 @@ export async function createDeepDiveTools(deps: DeepDiveDeps): Promise<Record<st
   const { knowledge: _omitted, ...properties } = raw.properties ?? {}
   type RawSchema = typeof raw
 
+  // Proposal loop gets you-search only. you-contents returns full web
+  // pages; when the model fetched one mid-loop it stayed in conversation
+  // history and blew the context cap (Germany: fixed ~115k tokens
+  // regardless of profile scope). Contents are fetched code-invoked in
+  // Stage 3b — the loop never needs them.
+  const { 'you-contents': _contents, ...proposalTools } = mcpTools
   return {
-    ...mcpTools,
+    ...proposalTools,
     'you-search': {
       ...search,
       inputSchema: jsonSchema({
