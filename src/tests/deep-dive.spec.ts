@@ -470,6 +470,15 @@ describe('deepDive', () => {
     expect(result.severity).toBe('critical')
     // the url-less knowledge fact reached synthesis — count it in the outcome
     expect(result.knowledgeHits).toBe(1)
+    // the fact itself (with provenance) is returned for report persistence
+    expect(result.knowledgeFacts).toEqual([
+      {
+        title: 'Hamburg port throughput (Monthly)',
+        description: 'Latest throughput 1.2M TEU.',
+        attribution: ['Fiscal.ai'],
+        asOf: undefined,
+      },
+    ])
     expect(result.reportMarkdown).toContain('Executive briefing.')
     // contents fetched for the scored result's URL
     expect(contentsCalls).toEqual([{ urls: ['https://hamburg.example/news'] }])

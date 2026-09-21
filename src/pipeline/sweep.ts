@@ -27,7 +27,12 @@ export type SweepDeps = {
   db: Database
   fetchHighlights: (profile: ProfileRecord) => Promise<string[]>
   triage: (profile: ProfileRecord, highlights: string[]) => Promise<number>
-  deepDive: (profile: ProfileRecord) => Promise<{ severity: string; reportMarkdown: string; knowledgeHits: number }>
+  deepDive: (profile: ProfileRecord) => Promise<{
+    severity: string
+    reportMarkdown: string
+    knowledgeHits: number
+    knowledgeFacts: { title: string; description: string; attribution?: string[]; asOf?: string }[]
+  }>
 }
 
 const TRIAGE_THRESHOLD = 0.5
@@ -100,8 +105,8 @@ export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise
   const reportId = randomUUID()
   deps.db
     .query(
-      `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, created_at)
-       VALUES ($id, $userId, $profileId, $severity, $contentHtml, $now)`,
+      `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, knowledge_json, created_at)
+       VALUES ($id, $userId, $profileId, $severity, $contentHtml, $knowledgeJson, $now)`,
     )
     .run({
       id: reportId,
@@ -109,6 +114,7 @@ export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise
       profileId: profile.id,
       severity: report.severity,
       contentHtml: report.reportMarkdown,
+      knowledgeJson: report.knowledgeFacts?.length ? JSON.stringify(report.knowledgeFacts) : null,
       now: Date.now(),
     })
   return {

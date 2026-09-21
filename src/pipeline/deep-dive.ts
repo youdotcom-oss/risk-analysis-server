@@ -94,6 +94,7 @@ export async function retrieveAndScore(
           ?.text ?? '[]'
       return parseSearchResults(text).map((item) => ({
         url: item.url,
+        title: item.title,
         snippet: item.description,
         attribution: item.attribution,
         asOf: item.asOf,
@@ -104,7 +105,7 @@ export async function retrieveAndScore(
   // dedupe by URL (knowledge facts have url '' — dedupe them by title),
   // first-seen order; provenance rides through
   const seen = new Set<string>()
-  const results: { url: string; snippet: string; attribution?: string[]; asOf?: string }[] = []
+  const results: { url: string; title?: string; snippet: string; attribution?: string[]; asOf?: string }[] = []
   for (const batch of rawResults) {
     for (const item of batch) {
       const key = item.url || item.snippet
@@ -112,6 +113,7 @@ export async function retrieveAndScore(
         seen.add(key)
         results.push({
           url: item.url,
+          title: item.title,
           snippet: item.snippet ?? '',
           attribution: item.attribution,
           asOf: item.asOf,
@@ -134,6 +136,7 @@ export async function retrieveAndScore(
   return scored.map((item) => ({
     url: item.url,
     domain: domainOf(item.url),
+    title: item.title,
     snippet: item.snippet,
     score: item.score,
     attribution: item.attribution,
@@ -238,7 +241,12 @@ async function assessSeverity(jev: Jev, profile: RiskProfile, scored: ScoredResu
 export async function deepDive(
   deps: DeepDiveDeps,
   profile: ProfileRecordLike,
-): Promise<{ severity: string; reportMarkdown: string; knowledgeHits: number }> {
+): Promise<{
+  severity: string
+  reportMarkdown: string
+  knowledgeHits: number
+  knowledgeFacts: { title: string; description: string; attribution?: string[]; asOf?: string }[]
+}> {
   const proposed = await proposeQueries(deps, profile)
   // Raw profile triggers run verbatim as deterministic Stage-3 queries:
   // knowledge providers match fact-shaped triggers ("TSMC revenue latest
@@ -267,13 +275,21 @@ export async function deepDive(
         `Scored findings: ${JSON.stringify(top)}\nFull article contents:\n${contents}`,
     }),
   ])
+  // Diagnostics + persistence: licensed knowledge facts that reached synthesis
+  const knowledgeFacts = top
+    .filter((item) => item.url === '')
+    .map((item) => ({
+      title: item.title ?? '',
+      description: item.snippet,
+      attribution: item.attribution,
+      asOf: item.asOf,
+    }))
   const reportMarkdown = formatReport({
     profile,
     severity: severity as 'low' | 'medium' | 'critical',
     markdown: synthesis.text,
     generatedAt: Date.now(),
+    knowledgeFacts,
   })
-  // Diagnostics: how many licensed knowledge facts reached synthesis
-  const knowledgeHits = top.filter((item) => item.url === '').length
-  return { severity, reportMarkdown, knowledgeHits }
+  return { severity, reportMarkdown, knowledgeHits: knowledgeFacts.length, knowledgeFacts }
 }

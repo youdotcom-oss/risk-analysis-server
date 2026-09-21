@@ -65,6 +65,7 @@ export async function validateQueries(jev: Jev, profile: RiskProfile, queries: s
 
 export type ScoredResult = {
   url: string
+  title?: string
   snippet: string
   score: number
   /** Licensed-data provider names (knowledge facts only). */
@@ -85,7 +86,7 @@ const PROVENANCE_BOOST = 1
 export async function scoreResults(
   jev: Jev,
   profile: RiskProfile,
-  results: { url: string; snippet: string; attribution?: string[]; asOf?: string }[],
+  results: { url: string; title?: string; snippet: string; attribution?: string[]; asOf?: string }[],
 ): Promise<ScoredResult[]> {
   // MINIMAL: blunt caps keep the systemOne payload within the TypeSafe
   // input limit (live runs hit 400 max_tokens_exceeded with ~100 results).
@@ -121,6 +122,7 @@ export async function scoreResults(
     const isKnowledge = Boolean(item.attribution?.length)
     return {
       url: item.url,
+      title: item.title,
       snippet: item.snippet,
       attribution: item.attribution,
       asOf: item.asOf,

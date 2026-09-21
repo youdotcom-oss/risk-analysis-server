@@ -65,3 +65,38 @@ describe('formatReport', () => {
     expect(report).toContain('**Linked sources:** 0')
   })
 })
+
+describe('formatReport licensed data section', () => {
+  test('renders knowledge facts with provider, as-of date, and description', () => {
+    const report = formatReport({
+      profile: { id: 'p1', userId: 'u', title: 'EU port operations', locations: [], triggers: [] },
+      severity: 'medium',
+      markdown,
+      generatedAt: 1700000000000,
+      knowledgeFacts: [
+        {
+          title: 'Hamburg port throughput (Monthly)',
+          description: 'Latest throughput was 1.2M TEU in Aug 2026.',
+          attribution: ['Fiscal.ai'],
+          asOf: '2026-08-31',
+        },
+      ],
+    })
+    expect(report).toContain('## Licensed data')
+    expect(report).toContain('Hamburg port throughput (Monthly)')
+    expect(report).toContain('per Fiscal.ai')
+    expect(report).toContain('as of 2026-08-31')
+    expect(report).toContain('1.2M TEU')
+  })
+
+  test('omits the section when there are no knowledge facts', () => {
+    const report = formatReport({
+      profile: { id: 'p1', userId: 'u', title: 't', locations: [], triggers: [] },
+      severity: 'low',
+      markdown,
+      generatedAt: 1700000000000,
+      knowledgeFacts: [],
+    })
+    expect(report).not.toContain('## Licensed data')
+  })
+})

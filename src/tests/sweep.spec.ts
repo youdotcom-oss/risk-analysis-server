@@ -31,7 +31,12 @@ const profile = {
 function makeDeps(overrides: {
   threatProbability: number
   deepDiveCalls?: unknown[]
-  deepDiveResult?: { severity: string; reportMarkdown: string; knowledgeHits: number }
+  deepDiveResult?: {
+    severity: string
+    reportMarkdown: string
+    knowledgeHits: number
+    knowledgeFacts: { title: string; description: string; attribution?: string[]; asOf?: string }[]
+  }
 }) {
   const triageCalls: unknown[] = []
   const deepDiveCalls: unknown[] = []
@@ -58,6 +63,7 @@ function makeDeps(overrides: {
             severity: 'medium',
             reportMarkdown: 'brief',
             knowledgeHits: 0,
+            knowledgeFacts: [],
           }
         )
       },
@@ -79,7 +85,12 @@ describe('runSweep', () => {
   test('above threshold: escalates, persists report, and returns severity', async () => {
     const { deps, db, deepDiveCalls } = makeDeps({
       threatProbability: 0.8,
-      deepDiveResult: { severity: 'critical', reportMarkdown: 'bad', knowledgeHits: 0 },
+      deepDiveResult: {
+        severity: 'critical',
+        reportMarkdown: 'bad',
+        knowledgeHits: 0,
+        knowledgeFacts: [{ title: 'K', description: 'bad fact', attribution: ['Fiscal.ai'], asOf: '2026-01-01' }],
+      },
     })
     const outcome = await runSweep(deps, profile)
     expect(outcome.escalated).toBe(true)

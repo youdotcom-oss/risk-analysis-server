@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS risk_reports (
   profile_id TEXT NOT NULL,
   severity TEXT NOT NULL,
   content_html TEXT NOT NULL,
+  knowledge_json TEXT,
   created_at INTEGER NOT NULL,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY(profile_id) REFERENCES risk_profiles(id) ON DELETE CASCADE
@@ -63,10 +64,15 @@ export function openDb(path: string): Database {
   // In-place migration for DBs created before sweep_schedule existed.
   // Only swallow the duplicate-column case: SQLITE_BUSY or anything else
   // must propagate (a swallowed BUSY leaves the schema stale silently).
-  try {
-    db.run('ALTER TABLE risk_profiles ADD COLUMN sweep_schedule TEXT')
-  } catch (error) {
-    if (!(error instanceof Error) || !error.message.includes('duplicate column')) throw error
+  for (const column of [
+    'ALTER TABLE risk_profiles ADD COLUMN sweep_schedule TEXT',
+    'ALTER TABLE risk_reports ADD COLUMN knowledge_json TEXT',
+  ]) {
+    try {
+      db.run(column)
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes('duplicate column')) throw error
+    }
   }
   db.query(
     `INSERT INTO users (id, email, created_at) VALUES ('local-user', 'local@localhost', $now)

@@ -306,15 +306,21 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
     async ({ report_id }) => {
       const report = report_id
         ? deps.db
-            .query<{ content_html: string; profile_title: string; severity: string }, [string, string]>(
-              `SELECT r.content_html, p.title AS profile_title, r.severity
+            .query<
+              { content_html: string; profile_title: string; severity: string; knowledge_json: string | null },
+              [string, string]
+            >(
+              `SELECT r.content_html, p.title AS profile_title, r.severity, r.knowledge_json
                  FROM risk_reports r JOIN risk_profiles p ON p.id = r.profile_id
                 WHERE r.id = ? AND r.user_id = ?`,
             )
             .get(report_id, deps.userId)
         : deps.db
-            .query<{ content_html: string; profile_title: string; severity: string }, [string]>(
-              `SELECT r.content_html, p.title AS profile_title, r.severity
+            .query<
+              { content_html: string; profile_title: string; severity: string; knowledge_json: string | null },
+              [string]
+            >(
+              `SELECT r.content_html, p.title AS profile_title, r.severity, r.knowledge_json
                  FROM risk_reports r JOIN risk_profiles p ON p.id = r.profile_id
                 WHERE r.user_id = ? ORDER BY r.created_at DESC LIMIT 1`,
             )
@@ -338,6 +344,7 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
               severity: report.severity,
               profile: report.profile_title,
               report_markdown: report.content_html,
+              knowledge: report.knowledge_json ? (JSON.parse(report.knowledge_json) as unknown[]) : [],
             }),
           },
         ],

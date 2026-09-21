@@ -241,9 +241,14 @@ describe('buildMcpServer', () => {
        VALUES ('p1', 'local-user', 'EU ports', '[]', '[]', $now)`,
     ).run({ now: Date.now() })
     db.query(
-      `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, created_at)
-       VALUES ('r1', 'local-user', 'p1', 'critical', '# EU ports — risk report\n\n## Summary\n\nPort strike.', $now)`,
-    ).run({ now: Date.now() })
+      `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, knowledge_json, created_at)
+       VALUES ('r1', 'local-user', 'p1', 'critical', '# EU ports — risk report\n\n## Summary\n\nPort strike.', $kj, $now)`,
+    ).run({
+      now: Date.now(),
+      kj: JSON.stringify([
+        { title: 'Hamburg port throughput', description: '1.2M TEU', attribution: ['Fiscal.ai'], asOf: '2026-08-31' },
+      ]),
+    })
     db.query(`INSERT INTO users (id, email, created_at) VALUES ('other-user', 'other@localhost', $now)`).run({
       now: Date.now(),
     })
@@ -263,9 +268,13 @@ describe('buildMcpServer', () => {
     const latestPayload = JSON.parse((latest.content as unknown as [{ text: string }])[0].text) as {
       severity: string
       report_markdown: string
+      knowledge?: { title: string; attribution?: string[]; asOf?: string }[]
     }
     expect(latestPayload.severity).toBe('critical')
     expect(latestPayload.report_markdown).toContain('Port strike.')
+    expect(latestPayload.knowledge).toHaveLength(1)
+    expect(latestPayload.knowledge?.[0]?.attribution).toEqual(['Fiscal.ai'])
+    expect(latestPayload.knowledge?.[0]?.asOf).toBe('2026-08-31')
 
     const byId = await client.callTool({
       name: 'get_risk_report',
