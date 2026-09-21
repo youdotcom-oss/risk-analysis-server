@@ -30,17 +30,23 @@ Point your client at `bun src/stdio.ts` (or the published bin:
 
 ## First run
 
-Paste this into your client after connecting:
+Paste one of these into your client after connecting:
 
-> Create a risk profile "PNW data center buildout" watching Oregon, Washington, and California with these triggers: data center moratoriums and permitting pauses, power grid capacity constraints, copper price today. Then run a manual sweep for it and summarize the report when done — note whether the report cites a live copper price.
+> Create a risk profile "PNW data center buildout" watching Oregon, Washington, and California with these triggers: data center moratoriums and permitting pauses, power grid capacity constraints, electricity price today. Then run a manual sweep for it and summarize the report when done — note whether the report cites a live electricity price.
+
+> Create a risk profile "US AI lab operations" watching Taiwan and the United States with these triggers: TSMC revenue latest quarter, chip export policy changes, electricity price today, interest rate today. Then run a manual sweep for it and summarize the report when done.
+
+> Create a risk profile "Gulf AI infrastructure" watching Saudi Arabia with these triggers: crude oil price today, weather in Riyadh, Gulf shipping and infrastructure security, chip export policy changes. Then run a manual sweep for it and summarize the report when done.
 
 The tool descriptions carry the protocol (start → poll until
 `completed`/`failed`); expect ~2–3 minutes. Every Stage-3 search runs
-with `knowledge: "core"`: fact-shaped queries (prices, rates, revenues)
-return licensed answers in `results.knowledge` (Fiscal.ai, S&P Global,
-World Bank) that flow into the briefing; news-shaped queries simply omit
-the key. The copper trigger is verified to return a World Bank
-commodity-data result, so the First Run shows both paths.
+with `knowledge: "core"`: fact-shaped queries (prices, rates, revenues,
+weather) return licensed answers in `results.knowledge` (Fiscal.ai, S&P
+Global, BLS, EIA, AccuWeather) that flow into the briefing; news-shaped
+queries simply omit the key. The second prompt is the most likely to
+show knowledge at work — TSMC revenue, electricity price, and interest
+rate are all verified to return licensed results (Fiscal.ai, BLS,
+Federal Reserve).
 
 ## The tools
 
