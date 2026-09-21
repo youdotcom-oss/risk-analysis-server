@@ -58,7 +58,11 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
         'List your active risk profiles with their ids, so you can pick a profileId for trigger_manual_sweep.',
       inputSchema: z.object({}),
     },
-    async () => {
+    async (_args, ctx) => {
+      // TEMP probe: what client capabilities does the host actually declare?
+      // Drives the decision to wire task-augmented sweeps (SEP-2663).
+      const envelope = (ctx as { mcpReq?: { envelope?: unknown } }).mcpReq?.envelope
+      console.error('[caps]', JSON.stringify(envelope ?? null))
       const profiles = getActiveProfiles(deps.db, deps.userId)
       return {
         content: [{ type: 'text', text: JSON.stringify(profiles) }],
