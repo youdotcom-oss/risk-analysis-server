@@ -32,15 +32,18 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
       }),
     },
     async ({ title, locations, triggers }) => {
-      saveProfile(deps.db, {
+      const profile = {
         id: randomUUID(),
         userId: deps.userId,
         title,
         locations,
         triggers,
-      })
+      }
+      saveProfile(deps.db, profile)
+      // Echo the full profile (esp. id) so the caller can chain into
+      // trigger_manual_sweep without needing a list/lookup tool.
       return {
-        content: [{ type: 'text', text: `Risk profile "${title}" saved.` }],
+        content: [{ type: 'text', text: JSON.stringify(profile) }],
       }
     },
   )

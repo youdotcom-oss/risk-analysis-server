@@ -55,9 +55,14 @@ describe('buildMcpServer', () => {
       },
     })
     expect(result.isError ?? false).toBe(false)
+    const text = (result.content as [{ type: string; text?: string }])[0]?.text
+    const echoed = JSON.parse(text ?? '') as { id: string; title: string }
+    expect(echoed.id).toMatch(/[0-9a-f-]{36}/)
+    expect(echoed.title).toBe('EU ports')
     const profiles = getActiveProfiles(db, 'local-user')
     expect(profiles).toHaveLength(1)
     expect(profiles[0]?.title).toBe('EU ports')
+    expect(profiles[0]?.id).toBe(echoed.id)
     await client.close()
     await server.close()
     db.close()
