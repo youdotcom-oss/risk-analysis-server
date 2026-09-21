@@ -32,7 +32,7 @@ Point your client at `bun src/stdio.ts` (or the published bin:
 
 Paste this into your client after connecting:
 
-> Create a risk profile "PNW data center buildout" watching Oregon, Washington, and California with these triggers: data center moratoriums and permitting pauses, power grid capacity constraints, Nvidia data center revenue latest quarter. Then run a manual sweep for it and summarize the report when done, including any licensed knowledge results.
+> Create a risk profile "PNW data center buildout" watching Oregon, Washington, and California with these triggers: data center moratoriums and permitting pauses, power grid capacity constraints, copper price today. Then run a manual sweep for it and summarize the report when done, including any licensed knowledge results.
 
 The tool descriptions carry the protocol (start returns a `task_id`
 immediately; poll with it every ~20s) — no further instruction needed.
@@ -44,11 +44,11 @@ Every Stage-3 search runs with `knowledge: "core"`: fact-shaped queries
 `results.knowledge` (providers like Fiscal.ai, S&P Global, AccuWeather)
 which flow into the briefing alongside web results. News-shaped queries
 (moratoriums, permitting) simply omit the key — the demo above includes
-one fact-shaped trigger ("Nvidia data center revenue latest quarter",
-verified to return Fiscal.ai knowledge results) so the First Run shows
-both paths. For a guaranteed knowledge hit on its own:
+one fact-shaped trigger ("copper price today", verified to return a
+World Bank commodity-data result) so the First Run shows both paths. For
+a guaranteed knowledge hit on its own:
 
-> Search for Nvidia's latest quarterly revenue and tell me the data provider.
+> Search for copper price today and tell me the data provider.
 
 ## The tools
 
