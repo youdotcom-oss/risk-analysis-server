@@ -9,8 +9,10 @@ import {
   getActiveProfiles,
   getSweepTask,
   saveProfile,
+  setSweepSchedule,
 } from './db.ts'
 import type { ProfileRecord, SweepOutcome } from './pipeline/sweep.ts'
+import { isValidCron, type ProfileScheduler } from './scheduler.ts'
 
 export type McpFactoryDeps = {
   db: Database
@@ -19,6 +21,12 @@ export type McpFactoryDeps = {
   /** Bound runSweepForTask: executes the sweep and mirrors status onto the task row. */
   sweepRunner: (profile: ProfileRecord, taskId: string) => Promise<SweepOutcome>
   taskTtlMs?: number
+  /**
+   * Per-process scheduler (optional): when present, set_sweep_schedule
+   * registers/unregisters Bun.cron jobs immediately. Without it, schedule
+   * changes persist to the DB and apply on the entry's next start.
+   */
+  scheduler?: Pick<ProfileScheduler, 'apply' | 'clear'>
 }
 
 export function buildMcpServer(deps: McpFactoryDeps): McpServer {
@@ -175,6 +183,70 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
               task_id: taskId,
               status: 'working',
               next: 'Poll this tool with task_id every ~20s until status is completed or failed.',
+            }),
+          },
+        ],
+      }
+    },
+  )
+
+  server.registerTool(
+    'set_sweep_schedule',
+    {
+      title: 'Set Sweep Schedule',
+      description:
+        'Schedule (or unschedule) automatic sweeps for one of your risk profiles. Pass schedule as a cron ' +
+        'expression (5 or 6 fields, e.g. "0 9 * * 1" = Mondays 9am UTC) to schedule; call with only profileId ' +
+        'to remove the schedule. Scheduled sweeps update the DB in the background — ask for the latest report ' +
+        'to see results. Note: cron runs only while a server session is alive.',
+      inputSchema: z.object({
+        profileId: z.string().min(1).describe('The profile to schedule (from list_risk_profiles).'),
+        schedule: z
+          .string()
+          .optional()
+          .describe('Cron expression, 5 or 6 fields (UTC). Omit to remove the existing schedule.'),
+      }),
+    },
+    async ({ profileId, schedule }) => {
+      const profile = getActiveProfiles(deps.db, deps.userId).find((p) => p.id === profileId)
+      if (!profile) {
+        return {
+          isError: true,
+          content: [{ type: 'text', text: `No active profile ${profileId} for this user.` }],
+        }
+      }
+      if (schedule !== undefined && !isValidCron(schedule)) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: `Invalid cron expression "${schedule}" — use 5 or 6 fields, e.g. "0 9 * * 1".`,
+            },
+          ],
+        }
+      }
+      setSweepSchedule(deps.db, profileId, schedule ?? null)
+      try {
+        if (schedule) deps.scheduler?.apply(profileId, schedule)
+        else deps.scheduler?.clear(profileId)
+      } catch (error) {
+        // Persistence succeeded; live registration failures surface here
+        return {
+          isError: true,
+          content: [{ type: 'text', text: `Stored, but live registration failed: ${String(error)}` }],
+        }
+      }
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              profileId,
+              schedule: schedule ?? null,
+              effect: schedule
+                ? 'Sweep scheduled — runs on this cron while a server session is alive.'
+                : 'Schedule removed.',
             }),
           },
         ],

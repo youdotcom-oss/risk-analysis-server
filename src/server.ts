@@ -4,16 +4,11 @@ import { createMcpHandler } from '@modelcontextprotocol/server'
 import type { Context, Hono } from 'hono'
 import { jwtVerify } from 'jose'
 import { defaultDbPath, missingKeyWarnings } from './config.ts'
-import { ensureUser, getAllActiveProfiles, openDb } from './db.ts'
+import { ensureUser, openDb } from './db.ts'
 import { buildMcpServer, type McpFactoryDeps } from './mcp.ts'
 import { getModel } from './model.ts'
-import {
-  buildSweepDeps,
-  type ProfileRecord,
-  runSweepForTask,
-  type SweepOutcome,
-  sweepAllProfiles,
-} from './pipeline/sweep.ts'
+import { buildSweepDeps, type ProfileRecord, runSweep, runSweepForTask, type SweepOutcome } from './pipeline/sweep.ts'
+import { ProfileScheduler } from './scheduler.ts'
 import { createJev, TypeSafeClient } from './services/jev.ts'
 import { createYdcClient } from './services/you.ts'
 
@@ -32,6 +27,8 @@ export type AppDeps = {
   sweepRunnerFactory: (
     deps: Omit<McpFactoryDeps, 'sweepRunner'>,
   ) => (profile: ProfileRecord, taskId: string) => Promise<SweepOutcome>
+  /** Per-process scheduler; enables live set_sweep_schedule registration. */
+  scheduler?: McpFactoryDeps['scheduler']
   /** Omitted in tests; when set, the cron sweep engine runs. */
   cronSchedule?: string
 }
@@ -61,6 +58,7 @@ export function createApp(deps: AppDeps): Hono {
       buildMcpServer({
         db: deps.db,
         userId: auth.sub,
+        scheduler: deps.scheduler,
         sweepRunner: deps.sweepRunnerFactory({ db: deps.db, userId: auth.sub }),
       }),
     )
@@ -86,10 +84,8 @@ async function verifyHmacBearer(req: Request, secret: string): Promise<TokenPayl
   }
 }
 
-// --- Module entry: default export (Bun serves the { fetch } object directly),
-// env wiring + cron engine. Never exercised by unit tests (they import createApp). ---
-
-let cachedApp: Hono | undefined
+// --- Module entry: default export (Bun serves the { fetch } object directly).
+// Never exercised by unit tests (they import createApp). ---
 
 function getServerApp(): Hono {
   if (cachedApp) return cachedApp
@@ -114,69 +110,41 @@ function getServerApp(): Hono {
         return runSweepForTask(deps.db, sweepDeps, profile, taskId)
       }
     },
+    scheduler: _entryScheduler,
   })
-
-  if (process.env.RISK_CRON_SCHEDULE) {
-    // Per-profile error isolation lives in sweepAllProfiles; the outer catch
-    // guards against unhandled rejections exiting the server (Bun cron
-    // semantics). No-overlap guarantee makes long sweeps safe on a schedule.
-    Bun.cron(
-      process.env.RISK_CRON_SCHEDULE,
-      async () => {
-        try {
-          const profiles = getAllActiveProfiles(db)
-          const sweepDeps = buildSweepDeps({
-            db,
-            userId: 'local-user',
-            ydcClient: await createYdcClient(),
-            jev: createJev(new TypeSafeClient()),
-            model: getModel(),
-          })
-          const results = await sweepAllProfiles(sweepDeps, profiles)
-          for (const result of results) {
-            if ('error' in result) console.error(`sweep failed for ${result.profileId}: ${result.error}`)
-          }
-        } catch (error) {
-          console.error('cron sweep failed:', error)
-        }
-      },
-      { tz: 'UTC' },
-    )
-  }
   return cachedApp
 }
 
-// Cron registration at module scope: the fetch wrapper above is lazy, so a
-// server with zero HTTP traffic would otherwise never register the schedule.
-if (process.env.RISK_CRON_SCHEDULE) {
-  // Own connection: cron may run while no HTTP request has opened the app.
-  const cronDb = openDb(defaultDbPath())
-  // Per-profile error isolation lives in sweepAllProfiles; the outer catch
-  // guards against unhandled rejections exiting the server (Bun cron
-  // semantics). No-overlap guarantee makes long sweeps safe on a schedule.
-  Bun.cron(
-    process.env.RISK_CRON_SCHEDULE,
-    async () => {
-      try {
-        const profiles = getAllActiveProfiles(cronDb)
-        const sweepDeps = buildSweepDeps({
-          db: cronDb,
+/**
+ * Entry-only scheduler startup: cron must register when this module runs as
+ * the process (bun src/server.ts) — a lazy registration inside getServerApp
+ * never fires on a zero-traffic server. Library imports (tests, consumers)
+ * are unaffected: import.meta.main is false there.
+ */
+if (import.meta.main) {
+  const entryDb = openDb(process.env.RISK_DB_PATH ?? defaultDbPath())
+  const entryScheduler = new ProfileScheduler(entryDb, 'local-user', {
+    sweep: async (profile) =>
+      runSweep(
+        buildSweepDeps({
+          db: entryDb,
           userId: 'local-user',
           ydcClient: await createYdcClient(),
           jev: createJev(new TypeSafeClient()),
           model: getModel(),
-        })
-        const results = await sweepAllProfiles(sweepDeps, profiles)
-        for (const result of results) {
-          if ('error' in result) console.error(`sweep failed for ${result.profileId}: ${result.error}`)
-        }
-      } catch (error) {
-        console.error('cron sweep failed:', error)
-      }
-    },
-    { tz: 'UTC' },
-  )
+        }),
+        profile,
+      ),
+  })
+  entryScheduler.applyStored()
+  if (process.env.RISK_CRON_SCHEDULE)
+    entryScheduler.applyGlobal(process.env.RISK_CRON_SCHEDULE)
+    // Expose to getServerApp for live set_sweep_schedule registration
+  ;(globalThis as Record<string, unknown>).__riskEntryScheduler = entryScheduler
 }
+
+let cachedApp: Hono | undefined
+const _entryScheduler = (globalThis as Record<string, unknown>).__riskEntryScheduler as ProfileScheduler | undefined
 
 export default {
   fetch: (req: Request) => getServerApp().fetch(req),

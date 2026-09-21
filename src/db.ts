@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS risk_profiles (
   locations TEXT NOT NULL,
   policy_triggers TEXT NOT NULL,
   is_active INTEGER DEFAULT 1,
+  sweep_schedule TEXT,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -59,6 +60,14 @@ export function openDb(path: string): Database {
   const db = new Database(path, { strict: true })
   db.run('PRAGMA journal_mode = WAL;')
   db.run(MIGRATION)
+  // In-place migration for DBs created before sweep_schedule existed.
+  // Only swallow the duplicate-column case: SQLITE_BUSY or anything else
+  // must propagate (a swallowed BUSY leaves the schema stale silently).
+  try {
+    db.run('ALTER TABLE risk_profiles ADD COLUMN sweep_schedule TEXT')
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes('duplicate column')) throw error
+  }
   db.query(
     `INSERT INTO users (id, email, created_at) VALUES ('local-user', 'local@localhost', $now)
        ON CONFLICT(id) DO NOTHING`,
@@ -109,9 +118,11 @@ export type ProfileRecordRow = {
   locations: string[]
   triggers: string[]
   isActive: boolean
+  /** Cron expression for scheduled sweeps; null when unscheduled. */
+  sweepSchedule: string | null
 }
 
-export function saveProfile(db: Database, profile: Omit<ProfileRecordRow, 'isActive'>): void {
+export function saveProfile(db: Database, profile: Omit<ProfileRecordRow, 'isActive' | 'sweepSchedule'>): void {
   db.query(
     `INSERT INTO risk_profiles
        (id, user_id, title, locations, policy_triggers, is_active, updated_at)
@@ -143,10 +154,11 @@ export function getActiveProfiles(db: Database, userId: string): ProfileRecordRo
         locations: string
         policy_triggers: string
         is_active: number
+        sweep_schedule: string | null
       },
       [string]
     >(
-      `SELECT id, user_id, title, locations, policy_triggers, is_active
+      `SELECT id, user_id, title, locations, policy_triggers, is_active, sweep_schedule
        FROM risk_profiles WHERE user_id = ? AND is_active = 1 ORDER BY title`,
     )
     .all(userId)
@@ -157,6 +169,7 @@ export function getActiveProfiles(db: Database, userId: string): ProfileRecordRo
       locations: JSON.parse(row.locations) as string[],
       triggers: JSON.parse(row.policy_triggers) as string[],
       isActive: row.is_active === 1,
+      sweepSchedule: row.sweep_schedule ?? null,
     }))
 }
 
@@ -171,10 +184,11 @@ export function getAllActiveProfiles(db: Database): ProfileRecordRow[] {
         locations: string
         policy_triggers: string
         is_active: number
+        sweep_schedule: string | null
       },
       []
     >(
-      `SELECT id, user_id, title, locations, policy_triggers, is_active
+      `SELECT id, user_id, title, locations, policy_triggers, is_active, sweep_schedule
        FROM risk_profiles WHERE is_active = 1 ORDER BY title`,
     )
     .all()
@@ -185,7 +199,17 @@ export function getAllActiveProfiles(db: Database): ProfileRecordRow[] {
       locations: JSON.parse(row.locations) as string[],
       triggers: JSON.parse(row.policy_triggers) as string[],
       isActive: row.is_active === 1,
+      sweepSchedule: row.sweep_schedule ?? null,
     }))
+}
+
+/** Persist (or clear with null) a profile's scheduled-sweep cron expression. */
+export function setSweepSchedule(db: Database, profileId: string, schedule: string | null): void {
+  db.query(`UPDATE risk_profiles SET sweep_schedule = $schedule, updated_at = $now WHERE id = $id`).run({
+    schedule,
+    now: Date.now(),
+    id: profileId,
+  })
 }
 
 export type SweepTaskInput = {

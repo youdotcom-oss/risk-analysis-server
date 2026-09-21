@@ -55,6 +55,7 @@ describe('e2e: real client through the http entry (in-process)', () => {
       'get_risk_report',
       'list_risk_profiles',
       'set_risk_profile',
+      'set_sweep_schedule',
       'trigger_manual_sweep',
     ])
 
@@ -122,6 +123,7 @@ describe('e2e: stdio spawned process', () => {
       'get_risk_report',
       'list_risk_profiles',
       'set_risk_profile',
+      'set_sweep_schedule',
       'trigger_manual_sweep',
     ])
 

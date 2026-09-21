@@ -41,6 +41,7 @@ describe('buildMcpServer', () => {
       'get_risk_report',
       'list_risk_profiles',
       'set_risk_profile',
+      'set_sweep_schedule',
       'trigger_manual_sweep',
     ])
     await client.close()
@@ -136,6 +137,55 @@ describe('buildMcpServer', () => {
     expect(outcome.status).toBe('completed')
     expect(outcome.escalated).toBe(true)
     expect(outcome.severity).toBe('critical')
+    await client.close()
+    await server.close()
+    db.close()
+  })
+
+  test('set_sweep_schedule stores, validates, and clears cron for a profile', async () => {
+    const registered: string[] = []
+    const db = openDb(tempDbPath())
+    const server = buildMcpServer({
+      db,
+      userId: 'local-user',
+      sweepRunner: async () => ({ escalated: false }),
+      scheduler: {
+        apply: (profileId: string, schedule: string | null) => registered.push(`${profileId}:${schedule}`),
+        clear: (profileId: string) => registered.push(`${profileId}:cleared`),
+      } as never,
+    })
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair()
+    const client = new Client({ name: 'test-client', version: '0.0.0' })
+    await server.connect(serverTransport)
+    await client.connect(clientTransport)
+    const saved = await client.callTool({
+      name: 'set_risk_profile',
+      arguments: { title: 'EU ports', locations: ['Hamburg Port'], triggers: [] },
+    })
+    const profileId = (JSON.parse((saved.content as unknown as [{ text: string }])[0].text) as { id: string }).id
+
+    // set: persists + notifies the scheduler
+    await client.callTool({
+      name: 'set_sweep_schedule',
+      arguments: { profileId, schedule: '0 9 * * 1' },
+    })
+    expect(registered).toContain(`${profileId}:0 9 * * 1`)
+
+    // profile listing carries the schedule
+    const listed = await client.callTool({ name: 'list_risk_profiles', arguments: {} })
+    expect((listed.content as unknown as [{ text: string }])[0].text).toContain('0 9 * * 1')
+
+    // invalid cron: clean error, nothing registered
+    const bad = await client.callTool({
+      name: 'set_sweep_schedule',
+      arguments: { profileId, schedule: 'whenever' },
+    })
+    expect(bad.isError ?? false).toBe(true)
+
+    // clear: null schedule unregisters
+    await client.callTool({ name: 'set_sweep_schedule', arguments: { profileId } })
+    expect(registered).toContain(`${profileId}:cleared`)
+
     await client.close()
     await server.close()
     db.close()

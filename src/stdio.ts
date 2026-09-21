@@ -5,7 +5,8 @@ import { defaultDbPath, missingKeyWarnings } from './config.ts'
 import { openDb } from './db.ts'
 import { buildMcpServer } from './mcp.ts'
 import { getModel } from './model.ts'
-import { buildSweepDeps, runSweepForTask, type SweepDeps } from './pipeline/sweep.ts'
+import { buildSweepDeps, runSweep, runSweepForTask, type SweepDeps } from './pipeline/sweep.ts'
+import { ProfileScheduler } from './scheduler.ts'
 import { createJev } from './services/jev.ts'
 import { createYdcClient } from './services/you.ts'
 
@@ -28,10 +29,21 @@ function sweepDeps(): SweepDeps {
   return cachedSweepDeps
 }
 
+const scheduler = new ProfileScheduler(db, 'local-user', {
+  sweep: async (profile) => runSweep(sweepDeps(), profile),
+})
+
+// Schedules: env global + DB-stored per-profile crons. Cron lives only
+// while this session is alive — long-lived autonomy belongs to the HTTP
+// entry (RISK_CRON_SCHEDULE + RISK_JWT_SECRET).
+if (process.env.RISK_CRON_SCHEDULE) scheduler.applyGlobal(process.env.RISK_CRON_SCHEDULE)
+scheduler.applyStored()
+
 serveStdio(() =>
   buildMcpServer({
     db,
     userId: 'local-user',
+    scheduler,
     sweepRunner: (profile, taskId) => runSweepForTask(db, sweepDeps(), profile, taskId),
   }),
 )

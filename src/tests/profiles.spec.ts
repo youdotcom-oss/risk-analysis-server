@@ -34,6 +34,7 @@ describe('profile persistence', () => {
         locations: ['Hamburg Port'],
         triggers: ['strikes'],
         isActive: true,
+        sweepSchedule: null,
       },
     ])
     db.close()
