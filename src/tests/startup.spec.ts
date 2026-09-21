@@ -1,4 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { type Subprocess, spawn } from 'bun'
 
 /**
@@ -8,8 +11,10 @@ import { type Subprocess, spawn } from 'bun'
  * (Cron FIRING itself is covered by the env-gated live smoke, not CI.)
  */
 const procs: Subprocess[] = []
+const dirs: string[] = []
 afterAll(() => {
   for (const proc of procs) proc.kill()
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
 })
 
 describe('server entry startup with schedules', () => {
@@ -20,7 +25,7 @@ describe('server entry startup with schedules', () => {
         ...process.env,
         RISK_JWT_SECRET: 'startup-smoke',
         RISK_CRON_SCHEDULE: '0 3 * * 0',
-        RISK_DB_PATH: `${import.meta.dir}/tmp-startup.sqlite`,
+        RISK_DB_PATH: `${dirs.push(mkdtempSync(join(tmpdir(), 'risk-startup-'))) && dirs.at(-1)!}/startup.sqlite`,
         YDC_API_KEY: '',
         TYPESAFE_API_KEY: '',
         OPENROUTER_API_KEY: '',

@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { defaultDbPath, missingKeyWarnings } from '../config.ts'
 
@@ -14,10 +15,14 @@ afterAll(() => {
 
 describe('defaultDbPath', () => {
   test('uses XDG_DATA_HOME and creates the directory', () => {
-    const root = join(import.meta.dir, 'tmp-defaultdbpath')
-    const path = defaultDbPath({ XDG_DATA_HOME: root })
-    expect(path).toBe(join(root, 'risk-analysis-server', 'risk.sqlite'))
-    expect(existsSync(join(root, 'risk-analysis-server'))).toBe(true)
+    const root = mkdtempSync(join(tmpdir(), 'risk-defaultdbpath-'))
+    try {
+      const path = defaultDbPath({ XDG_DATA_HOME: root })
+      expect(path).toBe(join(root, 'risk-analysis-server', 'risk.sqlite'))
+      expect(existsSync(join(root, 'risk-analysis-server'))).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
 
