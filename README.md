@@ -71,7 +71,10 @@ All payloads are budget-capped; results are stored durably in
 - **Autonomous**: run the HTTP entry persistently —
   `RISK_JWT_SECRET=... bun src/server.ts` with `RISK_CRON_SCHEDULE`.
   Stored schedules apply at startup; reports accumulate in the DB and are
-  readable via `get_risk_report` from any client, any time.
+  readable via `get_risk_report` from any client, any time. To keep
+  sweeping after you close the chat client, run it as a supervised local
+  service (launchd / systemd / Task Scheduler) — recipes in
+  [DEPLOY.md](./DEPLOY.md#running-the-http-entry-as-a-local-service).
 
 See [DEPLOY.md](./DEPLOY.md) for Docker/Fly/Railway and the full env-var table.
 

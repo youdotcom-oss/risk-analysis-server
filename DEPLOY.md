@@ -53,6 +53,109 @@ at `/data`.
 Do not run the HTTP entry on a private VPS port without TLS in front —
 bearer tokens must travel over HTTPS.
 
+## Running the HTTP entry as a local service
+
+The stdio entry is a **session**: its cron only fires while the client is
+connected. Durable scheduled sweeps need the **HTTP entry running as a
+supervised service**, independent of any chat client. Service and stdio
+session share one SQLite file, so reports accumulate in one place and
+`get_risk_report` works from any client, any time — ask "most recent report
+on X" hours later and read whatever the service swept meanwhile.
+
+The contract the service manager supervises is just `bun run start:http`:
+it registers the `ProfileScheduler` at startup (stored per-profile crons +
+`RISK_CRON_SCHEDULE` global), `set_sweep_schedule` registers live, and
+`RISK_JWT_SECRET` is required. Restart-on-crash is the service manager's
+whole job (`KeepAlive` / `Restart=always` / restart-on-failure). No
+detached children are spawned by the server itself — one supervised
+process, uniform role on every OS.
+
+### macOS — launchd
+
+Create `~/Library/LaunchAgents/com.risk-analysis-server.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.risk-analysis-server</string>
+  <key>ProgramArguments</key><array>
+    <string>/Users/YOU/.bun/bin/bun</string>
+    <string>run</string><string>start:http</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/YOU/Workspace/risk-analysis-server</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>EnvironmentVariables</key><dict>
+    <key>RISK_JWT_SECRET</key><string>generate-one</string>
+    <key>YDC_API_KEY</key><string>...</string>
+    <key>TYPESAFE_API_KEY</key><string>...</string>
+    <key>OPENROUTER_API_KEY</key><string>...</string>
+    <key>RISK_MODEL</key><string>qwen/qwen3.8-27b</string>
+  </dict>
+  <key>StandardOutPath</key><string>/tmp/risk-analysis-server.log</string>
+  <key>StandardErrorPath</key><string>/tmp/risk-analysis-server.err</string>
+</dict></plist>
+```
+
+```sh
+launchctl load ~/Library/LaunchAgents/com.risk-analysis-server.plist
+launchctl list | grep risk-analysis   # verify
+```
+
+launchd does **not** source `~/.zprofile` — keys must be in the plist's
+`EnvironmentVariables` (or a wrapper script that sources it).
+
+### Linux — systemd (user unit)
+
+`~/.config/systemd/user/risk-analysis.service`:
+
+```ini
+[Unit]
+Description=risk-analysis MCP server (HTTP entry)
+
+[Service]
+ExecStart=%h/.bun/bin/bun run start:http
+WorkingDirectory=%h/Workspace/risk-analysis-server
+Environment=RISK_JWT_SECRET=generate-one
+Environment=YDC_API_KEY=...
+Environment=TYPESAFE_API_KEY=...
+Environment=OPENROUTER_API_KEY=...
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+```
+
+```sh
+systemctl --user enable --now risk-analysis
+systemctl --user status risk-analysis
+```
+
+(`loginctl enable-linger YOU` keeps it running after you log out.)
+
+### Windows — Task Scheduler
+
+1. Create a task triggering **At startup** / **At log on**.
+2. Action: `C:\Users\YOU\.bun\bin\bun.exe run start:http`, start-in
+   the repo directory.
+3. Settings: **Restart on failure**, or wrap with
+   [NSSM](https://nssm.cc/) (`nssm install risk-analysis ...`) for full
+   service semantics.
+4. Set env vars as user environment variables — GUI-launched processes
+   don't read shell profiles.
+
+### Verifying it all works
+
+1. `bun run start:http` in a terminal → start Claude (stdio entry) →
+   `set_sweep_schedule` a profile for a minute from now.
+2. **Quit Claude.** Wait past the cron time.
+3. Relaunch Claude → `get_risk_report` → the sweep fired while it was
+   closed: a fresh report (briefing with licensed data, or the
+   low-severity clean-sweep record). That's the whole demo.
+
 ## Environment reference
 
 | Variable | Used by | Meaning |
