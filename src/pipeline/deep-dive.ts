@@ -227,7 +227,9 @@ export async function deepDive(
   const top = topScored(scored)
   const contents = await fetchContents(
     deps,
-    top.map((item) => item.url),
+    // knowledge facts (url: '') are non-fetchable — they flow to synthesis
+    // via the scored findings, not through the crawler
+    top.map((item) => item.url).filter((url) => url !== ''),
   )
   const [severity, synthesis] = await Promise.all([
     assessSeverity(deps.jev, profile, top),

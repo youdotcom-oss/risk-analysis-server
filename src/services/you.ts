@@ -47,17 +47,22 @@ export function parseSearchResults(text: string): NormalizedSearchResult[] {
         snippet?: unknown
         description?: unknown
       }
-      if (typeof record.url !== 'string' || record.url === '') return []
+      // Knowledge results (licensed facts, e.g. Fiscal.ai financials) carry
+      // no url — they are kept with url: '' and flow into synthesis, but are
+      // excluded from contents fetching (nothing to crawl).
+      const url = typeof record.url === 'string' ? record.url : ''
+      const description =
+        typeof record.description === 'string'
+          ? record.description
+          : typeof record.snippet === 'string'
+            ? record.snippet
+            : ''
+      if (url === '' && description === '') return []
       return [
         {
-          url: record.url,
+          url,
           title: typeof record.title === 'string' ? record.title : '',
-          description:
-            typeof record.description === 'string'
-              ? record.description
-              : typeof record.snippet === 'string'
-                ? record.snippet
-                : '',
+          description,
         },
       ]
     })

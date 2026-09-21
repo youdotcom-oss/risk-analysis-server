@@ -249,6 +249,14 @@ describe('retrieveAndScore', () => {
                         description: 'Rotterdam delays',
                       },
                     ],
+                    knowledge: [
+                      {
+                        type: 'answer',
+                        title: 'Rotterdam port throughput (Monthly)',
+                        description: 'Latest throughput was 14.6M TEU in Aug 2026.',
+                        attribution: [{ name: 'Fiscal.ai' }],
+                      },
+                    ],
                   },
                 }),
               },
@@ -266,7 +274,9 @@ describe('retrieveAndScore', () => {
       profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
     }
     const scored = await retrieveAndScore(deps, ['Rotterdam port strike'])
-    expect(scored.map((r) => r.url)).toEqual(['https://maritime-executive.com/strike', 'https://news.example/port'])
+    // knowledge fact (no url) is retained as a scoring candidate
+    expect(scored.map((r) => r.url)).toEqual(['https://maritime-executive.com/strike', 'https://news.example/port', ''])
+    expect(scored[2]?.snippet).toContain('14.6M TEU')
     // description promoted to snippet
     expect(scored[0]?.snippet).toBe('Dutch union sets national strike')
     db.close()
@@ -317,6 +327,12 @@ function stubContentTools() {
                   {
                     url: 'https://hamburg.example/news',
                     snippet: 'Hamburg port strike halts ferries',
+                  },
+                  {
+                    type: 'answer',
+                    title: 'Hamburg port throughput (Monthly)',
+                    description: 'Latest throughput 1.2M TEU.',
+                    attribution: [{ name: 'Fiscal.ai' }],
                   },
                 ],
               }),
@@ -595,5 +611,31 @@ describe('deepDive', () => {
     expect(searchInputs[0]?.query).toBe('"Hamburg Port" AND ("supply chain" OR "disruption" OR "hazard" OR "strike")')
     expect(result.reportMarkdown).toContain('Nothing found.')
     db.close()
+  })
+})
+
+describe('parseSearchResults knowledge handling', () => {
+  test('url-less knowledge results (licensed facts) survive normalization with an empty url', async () => {
+    const { parseSearchResults } = await import('../services/you.ts')
+    const text = JSON.stringify({
+      results: {
+        web: [{ url: 'https://x.example/a', title: 'page', description: 'a page' }],
+        knowledge: [
+          {
+            type: 'answer',
+            title: 'NVIDIA Total Revenues (Quarterly)',
+            description: 'Latest value was $96,221,000,000 for fiscal Q2 2027.',
+            attribution: [{ name: 'Fiscal.ai' }],
+          },
+        ],
+      },
+    })
+    const results = parseSearchResults(text)
+    const knowledge = results.find((r) => r.title.startsWith('NVIDIA'))
+    expect(knowledge).toBeDefined()
+    expect(knowledge?.url).toBe('') // non-fetchable fact: no page to crawl
+    expect(knowledge?.description).toContain('$96,221,000,000')
+    // web results untouched
+    expect(results.find((r) => r.url === 'https://x.example/a')).toBeDefined()
   })
 })

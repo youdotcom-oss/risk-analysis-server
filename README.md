@@ -1,13 +1,20 @@
 # Risk Analysis Server
 
-An autonomous risk-monitoring MCP server. Define a risk profile — a topic,
-the geographic locations to watch, and the policy triggers that matter — and
-the server runs an agentic sweep: live web search scoped by a judgment model
-(Jev), source scoring, and a Markdown briefing you can read from any MCP
-client.
+A guide/cookbook MCP server demonstrating how You.com's **knowledge
+parameter** composes with an agentic risk pipeline. Define a risk profile —
+a topic, the geographic locations to watch, and the policy triggers that
+matter — and the server runs an agentic sweep:
 
-Part of the You.com MCP server family. Runs on Bun only (`bun:sqlite`,
-`Bun.cron`); no Node target.
+- **You.com search with `knowledge: "core"`** — alongside web results, the
+  sweep pulls licensed factual answers (e.g. financials from Fiscal.ai)
+  into the synthesis, verified end-to-end via `results.knowledge`
+- **Jev judgments** (TypeSafe AI) — `noul`/`score`/`choice` gates at every
+  stage: triage, query relevance, per-result scoring, severity
+- **Vercel AI SDK** — the agentic proposal loop runs on `generateText`
+  with tools, on OpenRouter (default `qwen/qwen3.8-27b`)
+
+The output is a source-linked Markdown briefing readable from any MCP
+client. Runs on Bun only (`bun:sqlite`, `Bun.cron`); no Node target.
 
 ## Quickstart (Claude Desktop, Cursor, any stdio client)
 
