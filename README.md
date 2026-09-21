@@ -32,23 +32,15 @@ Point your client at `bun src/stdio.ts` (or the published bin:
 
 Paste this into your client after connecting:
 
-> Create a risk profile "PNW data center buildout" watching Oregon, Washington, and California with these triggers: data center moratoriums and permitting pauses, power grid capacity constraints, copper price today. Then run a manual sweep for it and summarize the report when done, including any licensed knowledge results.
+> Create a risk profile "PNW data center buildout" watching Oregon, Washington, and California with these triggers: data center moratoriums and permitting pauses, power grid capacity constraints, copper price today. Then run a manual sweep for it and summarize the report when done — note whether the report cites a live copper price.
 
-The tool descriptions carry the protocol (start returns a `task_id`
-immediately; poll with it every ~20s) — no further instruction needed.
-Expect ~2–3 minutes for the sweep; the summary should name a severity, a
-report id, and cite findings with source links.
-
-Every Stage-3 search runs with `knowledge: "core"`: fact-shaped queries
-(company revenue, prices, rates, weather) return licensed answers in
-`results.knowledge` (providers like Fiscal.ai, S&P Global, AccuWeather)
-which flow into the briefing alongside web results. News-shaped queries
-(moratoriums, permitting) simply omit the key — the demo above includes
-one fact-shaped trigger ("copper price today", verified to return a
-World Bank commodity-data result) so the First Run shows both paths. For
-a guaranteed knowledge hit on its own:
-
-> Search for copper price today and tell me the data provider.
+The tool descriptions carry the protocol (start → poll until
+`completed`/`failed`); expect ~2–3 minutes. Every Stage-3 search runs
+with `knowledge: "core"`: fact-shaped queries (prices, rates, revenues)
+return licensed answers in `results.knowledge` (Fiscal.ai, S&P Global,
+World Bank) that flow into the briefing; news-shaped queries simply omit
+the key. The copper trigger is verified to return a World Bank
+commodity-data result, so the First Run shows both paths.
 
 ## The tools
 
