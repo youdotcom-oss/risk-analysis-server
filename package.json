@@ -8,12 +8,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/youdotcom-oss/mcp.git"
+    "url": "git+https://github.com/youdotcom-oss/risk-analysis-server.git"
   },
   "bugs": {
-    "url": "https://github.com/youdotcom-oss/mcp/issues"
+    "url": "https://github.com/youdotcom-oss/risk-analysis-server/issues"
   },
-  "homepage": "https://github.com/youdotcom-oss/mcp#readme",
+  "homepage": "https://github.com/youdotcom-oss/risk-analysis-server#readme",
   "author": "You.com (https://you.com)",
   "keywords": [
     "mcp",
