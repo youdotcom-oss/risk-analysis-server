@@ -6,4 +6,3 @@ node_modules
 *.sqlite-shm
 bin
 plan.md
-DESIGN.md

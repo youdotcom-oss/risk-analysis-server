@@ -21,10 +21,10 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * Code-owned shell CSS, authored from DESIGN.md (the tracked report theme).
- * The model returns Markdown only; Bun.markdown.html() renders it with raw
- * HTML neutralized (tagFilter + noHtml*), and descendant selectors style it —
- * the model never touches markup classes.
+ * Code-owned shell CSS (the report theme is this constant — no external
+ * design file). The model returns Markdown only; Bun.markdown.html() renders
+ * it with raw HTML neutralized (tagFilter + noHtml*), and descendant
+ * selectors style it — the model never touches markup classes.
  */
 const SHELL_CSS = `
 :root {
