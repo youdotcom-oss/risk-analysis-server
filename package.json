@@ -44,7 +44,7 @@
     "test:watch": "bun test --watch",
     "prepare": "git config core.hooksPath .hooks"
   },
-  "mcpName": "io.github.youdotcom-oss/mcp",
+  "mcpName": "io.github.youdotcom-oss/risk-analysis-server",
   "devDependencies": {
     "@ai-sdk/mcp": "^2.0.54",
     "@biomejs/biome": "2.5.9",

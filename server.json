@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.youdotcom-oss/mcp",
+  "name": "io.github.youdotcom-oss/risk-analysis-server",
   "description": "You.com risk analysis MCP server: autonomous supply-chain and macro risk monitoring with Jev-gated sweeps, MCP Apps HTML briefings, and dual stdio/HTTP transports.",
   "version": "0.0.1",
   "packages": [
