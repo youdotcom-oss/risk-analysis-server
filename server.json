@@ -1,0 +1,33 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.youdotcom-oss/mcp",
+  "description": "You.com risk analysis MCP server: autonomous supply-chain and macro risk monitoring with Jev-gated sweeps, MCP Apps HTML briefings, and dual stdio/HTTP transports.",
+  "version": "0.0.1",
+  "packages": [
+    {
+      "registry_type": "npm",
+      "identifier": "@youdotcom-oss/risk-analsis-server",
+      "version": "0.0.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environment_variables": [
+        {
+          "name": "RISK_DB_PATH",
+          "description": "Path to the SQLite database file.",
+          "required": false
+        },
+        {
+          "name": "YDC_API_KEY",
+          "description": "You.com API key for search and contents tools.",
+          "required": true
+        },
+        {
+          "name": "TYPESAFE_API_KEY",
+          "description": "TypeSafe AI API key for Jev judgments.",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

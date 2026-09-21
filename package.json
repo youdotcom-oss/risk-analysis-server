@@ -4,7 +4,6 @@
   "description": "You.com risk analysis MCP server",
   "license": "MIT",
   "engines": {
-    "node": ">=18",
     "bun": ">= 1.2.21"
   },
   "repository": {
@@ -32,7 +31,9 @@
     "access": "public"
   },
   "scripts": {
-    "build": "bun build ./src/stdio.ts --outfile ./bin/stdio.js --target=node",
+    "build": "bun build ./src/stdio.ts --outfile ./bin/stdio.js --target=bun",
+    "start": "bun run ./bin/stdio.js",
+    "start:http": "bun src/server.ts",
     "check": "bun run check:biome && bun run check:types",
     "check:biome": "biome check",
     "check:types": "tsc --noEmit",

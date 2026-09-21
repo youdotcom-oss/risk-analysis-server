@@ -1,0 +1,16 @@
+services:
+  risk-analysis-server:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      RISK_JWT_SECRET: ${RISK_JWT_SECRET:?set RISK_JWT_SECRET in .env}
+      RISK_CRON_SCHEDULE: ${RISK_CRON_SCHEDULE:-0 6 * * MON}
+      RISK_ALLOWED_HOSTS: ${RISK_ALLOWED_HOSTS:-localhost}
+      YDC_API_KEY: ${YDC_API_KEY:-}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+    volumes:
+      - risk-data:/data
+
+volumes:
+  risk-data:

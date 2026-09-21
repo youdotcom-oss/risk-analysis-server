@@ -1,0 +1,9 @@
+node_modules
+.git
+.env*
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+bin
+plan.md
+DESIGN.md
