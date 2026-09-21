@@ -78,7 +78,7 @@ describe('runSweep', () => {
   test('above threshold: escalates, persists report, and returns severity', async () => {
     const { deps, db, deepDiveCalls } = makeDeps({
       threatProbability: 0.8,
-      deepDiveResult: { severity: 'critical', reportMarkdown: 'bad' },
+      deepDiveResult: { severity: 'critical', reportMarkdown: 'bad', knowledgeHits: 0 },
     })
     const outcome = await runSweep(deps, profile)
     expect(outcome.escalated).toBe(true)
