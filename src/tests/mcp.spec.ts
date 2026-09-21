@@ -156,6 +156,9 @@ describe('buildMcpServer', () => {
       `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, created_at)
        VALUES ('r1', 'local-user', 'p1', 'critical', '<p>port strike</p>', $now)`,
     ).run({ now: Date.now() })
+    db.query(`INSERT INTO users (id, email, created_at) VALUES ('other-user', 'other@localhost', $now)`).run({
+      now: Date.now(),
+    })
     db.query(
       `INSERT INTO risk_profiles (id, user_id, title, locations, policy_triggers, updated_at)
        VALUES ('p2', 'other-user', 'Other tenant ports', '[]', '[]', $now)`,
