@@ -60,7 +60,15 @@ export class ProfileScheduler {
       const outcome = await this.sweep(profile)
       completeSweepTask(this.db, taskId, outcome)
     } catch (error) {
-      failSweepTask(this.db, taskId, error)
+      // JSON.stringify(new Error()) is '{}' — store a diagnosable payload.
+      failSweepTask(this.db, taskId, {
+        code: 'scheduled_sweep_failed',
+        message: error instanceof Error ? error.message : String(error),
+      })
+      console.error(
+        `[scheduler] scheduled sweep failed for ${profile.id}:`,
+        error instanceof Error ? error.message : error,
+      )
     }
   }
 
@@ -98,7 +106,17 @@ export class ProfileScheduler {
   /** Apply all DB-stored per-profile schedules (call at startup). */
   applyStored(): void {
     for (const profile of getAllActiveProfiles(this.db)) {
-      if (profile.sweepSchedule) this.apply(profile.id, profile.sweepSchedule)
+      if (!profile.sweepSchedule) continue
+      try {
+        this.apply(profile.id, profile.sweepSchedule)
+      } catch (error) {
+        // A stale/invalid stored schedule must not crash the entry: skip the
+        // profile, keep serving. The row stays for the user to fix/clear.
+        console.error(
+          `[scheduler] failed to register schedule for ${profile.id}:`,
+          error instanceof Error ? error.message : error,
+        )
+      }
     }
   }
 

@@ -142,6 +142,47 @@ describe('buildMcpServer', () => {
     db.close()
   })
 
+  test('trigger_manual_sweep collapses concurrent starts on one profile', async () => {
+    let release: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let runs = 0
+    const { client, serverTransport, clientTransport, server } = connect({
+      sweepRunner: async () => {
+        runs++
+        await gate
+        return { escalated: false }
+      },
+    })
+    await server.connect(serverTransport)
+    await client.connect(clientTransport)
+    const saved = await client.callTool({
+      name: 'set_risk_profile',
+      arguments: { title: 'EU ports', locations: ['Hamburg Port'], triggers: [] },
+    })
+    const profileId = (JSON.parse((saved.content as unknown as [{ text: string }])[0].text) as { id: string }).id
+
+    const [first, second] = await Promise.all([
+      client.callTool({ name: 'trigger_manual_sweep', arguments: { profileId } }),
+      client.callTool({ name: 'trigger_manual_sweep', arguments: { profileId } }),
+    ])
+    const firstPayload = JSON.parse((first.content as unknown as [{ text: string }])[0].text) as { task_id: string }
+    const secondPayload = JSON.parse((second.content as unknown as [{ text: string }])[0].text) as {
+      task_id?: string
+      already_running?: boolean
+    }
+    // second caller is pointed at the in-flight task, not a duplicate sweep
+    if (secondPayload.already_running) {
+      expect(secondPayload.task_id).toBe(firstPayload.task_id)
+    }
+    release?.()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(runs).toBe(1)
+    await client.close()
+    await server.close()
+  })
+
   test('set_sweep_schedule stores, validates, and clears cron for a profile', async () => {
     const registered: string[] = []
     const db = openDb(tempDbPath())

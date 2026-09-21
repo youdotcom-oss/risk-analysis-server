@@ -16,7 +16,7 @@ The server exposes four tools. Work them in this order.
 | `list_risk_profiles` | List active profiles with ids. **Always call this first** — do not recreate profiles that already exist. |
 | `set_risk_profile` | Create or update a profile: `title`, `locations`, `triggers`. Returns the full profile JSON including `id`. |
 | `trigger_manual_sweep` | Two entry points (see below). |
-| `get_risk_report` | Fetch a completed briefing: defaults to latest, or pass `report_id`. Returns HTML — summarize it, don't echo it. |
+| `get_risk_report` | Fetch a completed briefing: defaults to latest, or pass `report_id`. Returns GFM Markdown — summarize it, don't echo it. |
 
 ## The sweep protocol (two calls)
 

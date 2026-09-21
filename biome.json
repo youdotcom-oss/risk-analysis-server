@@ -58,7 +58,7 @@
   },
   "overrides": [
     {
-      "includes": ["scripts/**/*.ts", "src/stdio.ts", "src/server.ts"],
+      "includes": ["scripts/**/*.ts", "src/stdio.ts", "src/server.ts", "src/scheduler.ts"],
       "linter": {
         "rules": {
           "suspicious": {

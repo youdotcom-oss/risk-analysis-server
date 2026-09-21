@@ -40,8 +40,8 @@ The `assets/` folder in this skill holds the container recipe this repo uses:
 - `assets/docker-compose.yml` — local orchestration with env wiring.
 
 Copy them into your fork and set the env vars the compose file expects
-(`RISK_JWT_SECRET`, `RISK_ALLOWED_HOSTS`, `RISK_CRON_SCHEDULE`, plus the two
-API keys). Any host that runs a Bun container works.
+(`RISK_JWT_SECRET`, `RISK_ALLOWED_HOSTS`, `RISK_CRON_SCHEDULE`, plus the three
+API keys: `YDC_API_KEY`, `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`). Any host that runs a Bun container works.
 
 ## Gotchas
 

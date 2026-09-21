@@ -172,6 +172,59 @@ describe('retrieveAndScore', () => {
   // { results: { web: [...] } } with `description` (not a flat array with
   // `snippet`). retrieveAndScore once iterated the raw object and crashed
   // with "TypeError: {} is not iterable".
+  test('Gate 3 scores against the real profile, not an empty literal', async () => {
+    const profilesSeen: unknown[] = []
+    const tools = {
+      'you-search': {
+        inputSchema: jsonSchema({ type: 'object' }),
+        async execute() {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  results: { web: [{ url: 'https://x.example/a', description: 'finding' }] },
+                }),
+              },
+            ],
+          }
+        },
+      },
+    }
+    const db = openDb(tempDbPath())
+    const deps = {
+      client: { tools: () => Promise.resolve(tools) } as never,
+      jev: {
+        systemOne(request: unknown) {
+          profilesSeen.push((request as { state?: { profile?: unknown } }).state?.profile)
+          return Promise.resolve({
+            answers: Object.fromEntries(
+              Object.keys((request as { questions: Record<string, unknown> }).questions).map((k) => [
+                k,
+                { type: 'score', score: 2, confidence: 0.9 },
+              ]),
+            ),
+          }) as never
+        },
+      } as unknown as SystemOneCaller,
+      db,
+      userId: 'local-user',
+      profile: { id: 'p-real', userId: 'local-user', title: 'Real profile', locations: [], triggers: [] },
+    }
+    await retrieveAndScore(deps, ['query one'], {
+      id: 'p-real',
+      userId: 'local-user',
+      title: 'Real profile',
+      locations: ['Hamburg Port'],
+      triggers: ['strikes'],
+    })
+    expect(profilesSeen.length).toBeGreaterThan(0)
+    for (const profile of profilesSeen) {
+      expect(profile).toMatchObject({ title: 'Real profile', id: 'p-real' })
+    }
+    db.close()
+  })
+
   test('normalizes the real you-search shape (nested results.web, description)', async () => {
     const tools = {
       'you-search': {
@@ -210,6 +263,7 @@ describe('retrieveAndScore', () => {
       jev: createJev(jevStub([2.5])),
       db,
       userId: 'local-user',
+      profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
     }
     const scored = await retrieveAndScore(deps, ['Rotterdam port strike'])
     expect(scored.map((r) => r.url)).toEqual(['https://maritime-executive.com/strike', 'https://news.example/port'])
@@ -227,6 +281,7 @@ describe('retrieveAndScore', () => {
       jev: createJev(jevStub([2.5, 0.5])),
       db,
       userId: 'local-user',
+      profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
     }
     const scored = await retrieveAndScore(deps, ['Hamburg Port strike', 'Duisburg rail blockade'])
 
@@ -356,6 +411,13 @@ describe('deepDive', () => {
         jev: createJev(jevForDeepDive(2.5)),
         db,
         userId: 'local-user',
+        profile: {
+          id: 'p1',
+          userId: 'local-user',
+          title: 'EU port operations',
+          locations: ['Hamburg Port'],
+          triggers: ['strike action'],
+        },
       },
       {
         id: 'p1',
@@ -448,6 +510,13 @@ describe('deepDive', () => {
         jev: createJev(jevForDeepDive(2.5)),
         db,
         userId: 'local-user',
+        profile: {
+          id: 'p1',
+          userId: 'local-user',
+          title: 'EU port operations',
+          locations: ['Hamburg Port'],
+          triggers: ['strike action'],
+        },
       },
       {
         id: 'p1',
@@ -506,6 +575,13 @@ describe('deepDive', () => {
         jev: createJev(jevForDeepDive(1)),
         db,
         userId: 'local-user',
+        profile: {
+          id: 'p1',
+          userId: 'local-user',
+          title: 'EU port operations',
+          locations: ['Hamburg Port'],
+          triggers: ['strike action'],
+        },
       },
       {
         id: 'p1',

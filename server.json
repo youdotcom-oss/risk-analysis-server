@@ -26,6 +26,11 @@
           "name": "TYPESAFE_API_KEY",
           "description": "TypeSafe AI API key for Jev judgments.",
           "required": true
+        },
+        {
+          "name": "OPENROUTER_API_KEY",
+          "description": "OpenRouter API key for the sweep model (RISK_MODEL selects the model).",
+          "required": true
         }
       ]
     }

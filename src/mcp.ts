@@ -115,6 +115,12 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
             ],
           }
         }
+        if (task.status === 'cancelled') {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `Sweep ${task_id} was cancelled.` }],
+          }
+        }
         if (task.status === 'failed') {
           return {
             isError: true,
@@ -160,6 +166,31 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
             {
               type: 'text',
               text: `No active profile ${profileId} for this user.`,
+            },
+          ],
+        }
+      }
+      // Overlap guard: an in-flight sweep for this profile is joined, not
+      // duplicated. (Recent-run suppression stays scheduler-only — explicit
+      // manual re-runs are always allowed.)
+      const inFlight = deps.db
+        .query<{ task_id: string }, [string, string, number]>(
+          `SELECT task_id FROM sweep_tasks
+            WHERE profile_id = ? AND user_id = ? AND status = 'working' AND ttl_at > ?
+            ORDER BY created_at DESC LIMIT 1`,
+        )
+        .get(profile.id, deps.userId, Date.now())
+      if (inFlight) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                task_id: inFlight.task_id,
+                status: 'working',
+                already_running: true,
+                next: 'A sweep for this profile is already in flight — poll with task_id.',
+              }),
             },
           ],
         }
@@ -226,17 +257,26 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
           ],
         }
       }
-      setSweepSchedule(deps.db, profileId, schedule ?? null)
-      try {
-        if (schedule) deps.scheduler?.apply(profileId, schedule)
-        else deps.scheduler?.clear(profileId)
-      } catch (error) {
-        // Persistence succeeded; live registration failures surface here
-        return {
-          isError: true,
-          content: [{ type: 'text', text: `Stored, but live registration failed: ${String(error)}` }],
+      // Register live FIRST: a cron Bun rejects must never persist, or it
+      // poisons the next startup. applyStored also tolerates bad rows, but
+      // this keeps the tool honest about what actually took effect.
+      if (schedule && deps.scheduler) {
+        try {
+          deps.scheduler.apply(profileId, schedule)
+        } catch (error) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: 'text',
+                text: `Schedule rejected: ${error instanceof Error ? error.message : String(error)}`,
+              },
+            ],
+          }
         }
       }
+      setSweepSchedule(deps.db, profileId, schedule ?? null)
+      if (!schedule) deps.scheduler?.clear(profileId)
       return {
         content: [
           {
@@ -260,7 +300,7 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
       title: 'Get Risk Report',
       description:
         'Fetch a completed risk briefing. Defaults to the latest report; pass report_id to fetch a specific one. ' +
-        'Returns the briefing as HTML — summarize it for the user rather than echoing it verbatim.',
+        'Returns the briefing as GFM Markdown — summarize it for the user rather than echoing it verbatim.',
       inputSchema: z.object({ report_id: z.string().min(1).optional() }),
     },
     async ({ report_id }) => {

@@ -54,7 +54,7 @@ async function fetchHighlights(client: Pick<MCPClient, 'tools'>, profile: Profil
     .filter((highlight) => highlight !== '')
 }
 
-export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client'> & {
+export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client' | 'profile'> & {
   db: Database
   /** The You.com MCP client, or a promise for it (lazy connect keeps startup
    *  independent of the upstream server's availability). */
@@ -76,6 +76,7 @@ export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
           jev: args.jev,
           db: args.db,
           userId: args.userId,
+          profile,
         },
         profile,
       ),

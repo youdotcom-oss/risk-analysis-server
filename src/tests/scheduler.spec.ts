@@ -1,10 +1,19 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { openDb, saveProfile, setSweepSchedule } from '../db.ts'
 import { type CronHandle, isValidCron, ProfileScheduler } from '../scheduler.ts'
 
+const tmpDirs: string[] = []
+afterAll(() => {
+  for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true })
+})
+
 function tempDb() {
-  const db = openDb(`${import.meta.dir}/tmp-scheduler-${Date.now()}-${Math.random().toString(36).slice(2)}.sqlite`)
-  return db
+  const dir = mkdtempSync(`${tmpdir()}/risk-scheduler-`)
+  tmpDirs.push(dir)
+  return openDb(join(dir, 'risk.sqlite'))
 }
 
 class FakeRegistrar {
@@ -93,6 +102,50 @@ describe('ProfileScheduler', () => {
     scheduler.applyStored()
     expect(registrar.jobs.has('0 9 * * *')).toBe(true)
     expect(registrar.jobs.size).toBe(1) // p2 has no schedule
+    db.close()
+  })
+})
+
+describe('ProfileScheduler.applyStored', () => {
+  test('a profile whose cron Bun rejects is skipped with a log, not a startup crash', () => {
+    const db = tempDb()
+    saveProfile(db, { id: 'p-ok', userId: 'local-user', title: 'ok', locations: [], triggers: [] })
+    saveProfile(db, { id: 'p-bad', userId: 'local-user', title: 'bad', locations: [], triggers: [] })
+    setSweepSchedule(db, 'p-ok', '0 9 * * 1')
+    setSweepSchedule(db, 'p-bad', 'a b c d e') // passes isValidCron, Bun.cron rejects
+    const registrar = new FakeRegistrar()
+    const scheduler = new ProfileScheduler(db, 'local-user', {
+      register: (expr, fn) => {
+        if (expr === 'a b c d e') throw new Error('Invalid cron expression: value out of range for field')
+        return registrar.register(expr, fn)
+      },
+      sweep: async () => ({ escalated: false }),
+    })
+    expect(() => scheduler.applyStored()).not.toThrow()
+    expect(registrar.jobs.has('0 9 * * 1')).toBe(true) // good profile still applied
+    db.close()
+  })
+})
+
+describe('ProfileScheduler.sweepProfile failure path', () => {
+  test('a failing sweep stores a diagnosable error, not {}', async () => {
+    const db = tempDb()
+    saveProfile(db, { id: 'p1', userId: 'local-user', title: 't', locations: [], triggers: [] })
+    const jobs = new Map<string, () => unknown>()
+    const scheduler = new ProfileScheduler(db, 'local-user', {
+      register: (expr, fn) => {
+        jobs.set(expr, fn)
+        return { stop: () => jobs.delete(expr) }
+      },
+      sweep: async () => {
+        throw new Error('OpenRouter 503 no healthy upstream')
+      },
+    })
+    scheduler.apply('p1', '* * * * *')
+    await jobs.get('* * * * *')!()
+    const row = db.query<{ error_json: string }, []>('SELECT error_json FROM sweep_tasks').get()
+    const parsed = JSON.parse(row?.error_json ?? '{}') as { message?: string }
+    expect(parsed.message).toContain('503')
     db.close()
   })
 })

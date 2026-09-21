@@ -94,11 +94,13 @@ function getServerApp(): Hono {
   const db = openDb(process.env.RISK_DB_PATH ?? defaultDbPath())
   for (const warning of missingKeyWarnings()) console.warn(warning)
 
+  // One shared You.com MCP client per process, connected lazily on the first
+  // sweep (not per request — a per-request client leaked connections).
+  const ydcClientP = createYdcClient()
   cachedApp = createApp({
     db,
     jwtSecret: secret,
     sweepRunnerFactory: (deps) => {
-      const ydcClientP = createYdcClient()
       return async (profile, taskId) => {
         const sweepDeps = buildSweepDeps({
           db: deps.db,
@@ -128,7 +130,8 @@ if (import.meta.main) {
       runSweep(
         buildSweepDeps({
           db: entryDb,
-          userId: 'local-user',
+          // tenant-scoped: source_utility deltas land under the profile's owner
+          userId: profile.userId,
           ydcClient: await createYdcClient(),
           jev: createJev(new TypeSafeClient()),
           model: getModel(),

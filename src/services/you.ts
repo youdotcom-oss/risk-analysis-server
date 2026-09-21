@@ -37,7 +37,7 @@ export function parseSearchResults(text: string): NormalizedSearchResult[] {
   try {
     parsed = JSON.parse(text)
   } catch {
-    return text === '' ? [] : []
+    return []
   }
   const collect = (items: unknown): NormalizedSearchResult[] =>
     (Array.isArray(items) ? items : []).flatMap((item) => {

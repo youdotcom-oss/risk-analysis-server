@@ -45,6 +45,8 @@ export type RetrieveDeps = {
   jev: Jev
   db: Database
   userId: string
+  /** Real profile — Gate 3 scores relevancy against its locations/triggers. */
+  profile: ProfileRecordLike
 }
 
 export type DeepDiveDeps = RetrieveDeps & {
@@ -76,7 +78,11 @@ function domainOf(url: string): string {
  * dedup by URL across queries, Jev relevancy scoring (Gate 3), then
  * domain-utility deltas persisted in one transaction.
  */
-export async function retrieveAndScore(deps: RetrieveDeps, queries: string[]): Promise<ScoredResult[]> {
+export async function retrieveAndScore(
+  deps: RetrieveDeps,
+  queries: string[],
+  profile?: ProfileRecordLike,
+): Promise<ScoredResult[]> {
   const tools = await deps.client.tools()
   const search = tools['you-search']
   if (!search) throw new Error('you-search tool not exposed by the You.com MCP server')
@@ -106,7 +112,7 @@ export async function retrieveAndScore(deps: RetrieveDeps, queries: string[]): P
     }
   }
 
-  const scored = await scoreResults(deps.jev, { title: '', locations: [], triggers: [] }, results)
+  const scored = await scoreResults(deps.jev, profile ?? { title: '', locations: [], triggers: [] }, results)
 
   updateSourceUtility(
     deps.db,
@@ -217,7 +223,7 @@ export async function deepDive(
   profile: ProfileRecordLike,
 ): Promise<{ severity: string; reportMarkdown: string }> {
   const queries = await proposeQueries(deps, profile)
-  const scored = await retrieveAndScore(deps, queries)
+  const scored = await retrieveAndScore(deps, queries, profile)
   const top = topScored(scored)
   const contents = await fetchContents(
     deps,

@@ -39,9 +39,11 @@ confirm a `serverInfo` response comes back.
 - No auth and no user concept in stdio mode: every profile belongs to the
   seeded `local-user`. Auth belongs in the HTTP entry (`src/server.ts`), which
   consumers reach via the import-integration skill instead.
-- `trigger_manual_sweep` runs synchronously — the sweep completes before the
-  tool result returns. Do not add MCP task machinery to make it async; SDK v2
-  2.0.0 has no task runtime.
+- `trigger_manual_sweep` is fire-and-poll: the start call returns a task_id
+  immediately and the sweep runs in the background; poll with task_id until
+  completed/failed (see the `drive-sweeps` skill). Do not add MCP task
+  machinery — SDK v2 2.0.0 has no task runtime, and the two-call protocol
+  already covers long-running sweeps within client timeouts.
 - Missing `YDC_API_KEY` silently drops the auth header, not the request — the
   hosted You.com server then falls back to its free tier for `you-search`.
   If results look empty, the key is missing, not the integration.
