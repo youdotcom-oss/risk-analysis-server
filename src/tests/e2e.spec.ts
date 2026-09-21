@@ -69,12 +69,9 @@ describe('e2e: real client through the http entry (in-process)', () => {
     })
     expect(call.isError ?? false).toBe(false)
 
-    // resource read serves the bundled app shell (report fallback when
-    // unbundled) — either way non-empty
-    const resource = await client.readResource({
-      uri: 'ui://risk-report/latest',
-    })
-    expect((resource.contents[0] as { text?: string }).text?.length).toBeGreaterThan(0)
+    // report read with no reports yet -> clean error result
+    const report = await client.callTool({ name: 'get_risk_report', arguments: {} })
+    expect(report.isError ?? false).toBe(true)
 
     // the profile landed under the bearer sub, not local-user
     const profiles = db.query<{ user_id: string; title: string }, []>('SELECT user_id, title FROM risk_profiles').all()
@@ -134,13 +131,9 @@ describe('e2e: stdio spawned process', () => {
     })
     expect(call.isError ?? false).toBe(false)
 
-    // read the report resource over stdio — the bundled app shell when the
-    // view is built, the no-reports fallback otherwise
-    const resource = await client.readResource({
-      uri: 'ui://risk-report/latest',
-    })
-    const resourceText = (resource.contents[0] as { text?: string }).text ?? ''
-    expect(resourceText.length).toBeGreaterThan(0)
+    // report read with no reports yet -> clean error result
+    const report = await client.callTool({ name: 'get_risk_report', arguments: {} })
+    expect(report.isError ?? false).toBe(true)
 
     await client.close()
   }, 30_000)

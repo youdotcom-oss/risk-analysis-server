@@ -367,7 +367,7 @@ describe('deepDive', () => {
     )
 
     expect(result.severity).toBe('critical')
-    expect(result.contentHtml).toContain('Executive briefing.')
+    expect(result.reportMarkdown).toContain('Executive briefing.')
     // contents fetched for the scored result's URL
     expect(contentsCalls).toEqual([{ urls: ['https://hamburg.example/news'] }])
     // utility persisted
@@ -517,7 +517,7 @@ describe('deepDive', () => {
     )
 
     expect(searchInputs[0]?.query).toBe('"Hamburg Port" AND ("supply chain" OR "disruption" OR "hazard" OR "strike")')
-    expect(result.contentHtml).toContain('Nothing found.')
+    expect(result.reportMarkdown).toContain('Nothing found.')
     db.close()
   })
 })

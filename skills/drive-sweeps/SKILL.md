@@ -37,9 +37,8 @@ keeps running server-side; keep polling.
 - Call `get_risk_report` (optionally with `report_id` from the outcome) and
   summarize the briefing: severity, key findings with source links, and
   recommended mitigations.
-- The `ui://risk-report/latest` resource is the same briefing as an MCP App
-  (rendered as an iframe by apps-capable hosts). Text-only clients should
-  use `get_risk_report` instead of reading the resource.
+- Briefings are GFM Markdown — cite the key findings with their source
+  links and list the mitigations; the report HTML/iframe era is gone.
 
 ## Gotchas
 

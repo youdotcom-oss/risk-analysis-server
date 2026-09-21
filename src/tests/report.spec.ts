@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { renderReport } from '../pipeline/report.ts'
+import { formatReport } from '../pipeline/report.ts'
 
 const markdown = [
   '## Summary',
@@ -15,9 +15,9 @@ const markdown = [
   '1. Reroute containers via Rotterdam',
 ].join('\n')
 
-describe('renderReport', () => {
-  test('builds a self-contained styled document with header, tag, and rendered sections', () => {
-    const html = renderReport({
+describe('formatReport', () => {
+  test('prepends code-owned header facts and passes model markdown through untouched', () => {
+    const report = formatReport({
       profile: {
         id: 'p1',
         userId: 'u',
@@ -29,54 +29,39 @@ describe('renderReport', () => {
       markdown,
       generatedAt: 1700000000000,
     })
-    // code-owned header facts
-    expect(html).toContain('EU port operations')
-    expect(html).toContain('Hamburg Port')
-    expect(html).toContain('critical')
-    // markdown rendered through Bun.markdown with our classes
-    expect(html).toContain('<h2>Summary</h2>')
-    expect(html).toContain('A strike at Hamburg Port threatens freight schedules.')
-    expect(html).toContain('<a href="https://reuters.example/hamburg">Reuters</a>')
-    expect(html).toContain('Recommended mitigations')
-    // shell: inline CSS, no external requests
-    expect(html).toContain('<style>')
-    expect(html).not.toContain('<link')
-    expect(html).not.toContain('http-equiv')
+    // header facts are code-owned
+    expect(report).toContain('# EU port operations — risk report')
+    expect(report).toContain('**Severity:** critical')
+    expect(report).toContain('**Locations:** Hamburg Port')
+    expect(report).toContain('**Generated:** 2023-11-14')
+    expect(report).toContain('**Linked sources:** 1')
+    // model markdown is verbatim — links and structure intact for agents
+    expect(report).toContain('## Summary')
+    expect(report).toContain('[Reuters](https://reuters.example/hamburg)')
+    expect(report).toContain('## Recommended mitigations')
+    // no HTML shell: agents consume Markdown
+    expect(report).not.toContain('<style>')
+    expect(report).not.toContain('<div')
   })
 
-  test('model HTML is neutralized: raw tags never reach the output', () => {
-    const html = renderReport({
-      profile: {
-        id: 'p1',
-        userId: 'u',
-        title: 't',
-        locations: [],
-        triggers: [],
-      },
+  test('model output passes through unescaped — the consumer is an agent, not a browser', () => {
+    const report = formatReport({
+      profile: { id: 'p1', userId: 'u', title: 't', locations: [], triggers: [] },
       severity: 'low',
-      markdown: '## Summary\n\nHello <script>alert(1)</script> and <img src=x onerror=alert(1)>',
+      markdown: '## Summary\n\nAngle brackets like <tag> stay literal in Markdown.',
       generatedAt: 1700000000000,
     })
-    expect(html).not.toContain('<script>')
-    expect(html).not.toContain('<img')
-    const escapedScript = '&' + 'lt;script' + '&' + 'gt;'
-    expect(html).toContain(escapedScript)
+    expect(report).toContain('<tag>')
   })
 
-  test('severity tag carries text alongside color', () => {
-    const html = renderReport({
-      profile: {
-        id: 'p1',
-        userId: 'u',
-        title: 't',
-        locations: [],
-        triggers: [],
-      },
+  test('empty locations render as All locations; source count handles zero', () => {
+    const report = formatReport({
+      profile: { id: 'p1', userId: 'u', title: 't', locations: [], triggers: [] },
       severity: 'medium',
-      markdown,
+      markdown: '## Summary\n\nNo links here.',
       generatedAt: 1700000000000,
     })
-    expect(html).toContain('>medium<')
-    expect(html).toContain('severity-medium')
+    expect(report).toContain('**Locations:** All locations')
+    expect(report).toContain('**Linked sources:** 0')
   })
 })

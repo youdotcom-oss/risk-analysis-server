@@ -25,9 +25,8 @@ compatibility: Requires Bun >= 1.2.21, an OPENROUTER_API_KEY (sweep model), YDC_
    its id), then drive `trigger_manual_sweep` with the two-call protocol:
    start with `profileId` — the tool returns a `task_id` immediately — and
    poll with `task_id` every ~20s until status is `completed` or `failed`
-   (typical duration 2-3 minutes). Read the briefing via `get_risk_report`;
-   it also lands at `ui://risk-report/latest` for apps-capable hosts. See
-   the `drive-sweeps` skill for the full client protocol.
+   (typical duration 2-3 minutes). Read the briefing via `get_risk_report`
+   (Markdown). See the `drive-sweeps` skill for the full client protocol.
 
 ## Verify
 

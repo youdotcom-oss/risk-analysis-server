@@ -25,7 +25,7 @@ export type SweepDeps = {
   db: Database
   fetchHighlights: (profile: ProfileRecord) => Promise<string[]>
   triage: (profile: ProfileRecord, highlights: string[]) => Promise<number>
-  deepDive: (profile: ProfileRecord) => Promise<{ severity: string; contentHtml: string }>
+  deepDive: (profile: ProfileRecord) => Promise<{ severity: string; reportMarkdown: string }>
 }
 
 const TRIAGE_THRESHOLD = 0.5
@@ -104,7 +104,7 @@ export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise
       userId: profile.userId,
       profileId: profile.id,
       severity: report.severity,
-      contentHtml: report.contentHtml,
+      contentHtml: report.reportMarkdown,
       now: Date.now(),
     })
   return { escalated: true, severity: report.severity, reportId }

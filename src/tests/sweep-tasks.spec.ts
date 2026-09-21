@@ -110,7 +110,7 @@ describe('runSweepForTask', () => {
       db,
       fetchHighlights: async () => ['h'],
       triage: async () => 0.8,
-      deepDive: async () => ({ severity: 'low', contentHtml: '<p>ok</p>' }),
+      deepDive: async () => ({ severity: 'low', reportMarkdown: 'brief' }),
     } as never
     const outcome = await runSweepForTask(
       db,

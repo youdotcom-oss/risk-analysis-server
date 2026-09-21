@@ -11,7 +11,7 @@ The package ships raw TypeScript — a Bun project imports it directly, no build
 step. The entry points are the `exports` subpaths in package.json:
 
 - `@youdotcom-oss/risk-analsis-server/server` — `createApp` (HTTP entry)
-- `.../mcp` — `buildMcpServer` (tools + `ui://` resource factory)
+- `.../mcp` — `buildMcpServer` (tools factory)
 - `.../pipeline` — `buildSweepDeps`, `runSweep`, `sweepAllProfiles`
 - `.../db` — `openDb` — `.../model` — `getModel`
 - `.../services/you` and `.../services/jev` — the You.com and Jev clients

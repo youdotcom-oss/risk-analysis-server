@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/client'
@@ -141,21 +141,6 @@ describe('buildMcpServer', () => {
     db.close()
   })
 
-  test('trigger_manual_sweep binds the report UI resource (MCP Apps _meta)', async () => {
-    const { client, server, serverTransport, clientTransport } = connect()
-    await server.connect(serverTransport)
-    await client.connect(clientTransport)
-    const tools = await client.listTools()
-    const sweep = tools.tools.find((tool) => tool.name === 'trigger_manual_sweep')
-    // SEP-1865: the host only renders the iframe when the tool declares
-    // _meta.ui.resourceUri pointing at a ui:// resource.
-    expect((sweep?._meta as { ui?: { resourceUri?: string } } | undefined)?.ui?.resourceUri).toBe(
-      'ui://risk-report/latest',
-    )
-    await client.close()
-    await server.close()
-  })
-
   test('get_risk_report serves latest and by-id; tenant-scoped', async () => {
     const { db, client, serverTransport, clientTransport, server } = connect()
     await server.connect(serverTransport)
@@ -166,7 +151,7 @@ describe('buildMcpServer', () => {
     ).run({ now: Date.now() })
     db.query(
       `INSERT INTO risk_reports (id, user_id, profile_id, severity, content_html, created_at)
-       VALUES ('r1', 'local-user', 'p1', 'critical', '<p>port strike</p>', $now)`,
+       VALUES ('r1', 'local-user', 'p1', 'critical', '# EU ports — risk report\n\n## Summary\n\nPort strike.', $now)`,
     ).run({ now: Date.now() })
     db.query(`INSERT INTO users (id, email, created_at) VALUES ('other-user', 'other@localhost', $now)`).run({
       now: Date.now(),
@@ -186,10 +171,10 @@ describe('buildMcpServer', () => {
     })
     const latestPayload = JSON.parse((latest.content as unknown as [{ text: string }])[0].text) as {
       severity: string
-      report_html: string
+      report_markdown: string
     }
     expect(latestPayload.severity).toBe('critical')
-    expect(latestPayload.report_html).toContain('port strike')
+    expect(latestPayload.report_markdown).toContain('Port strike.')
 
     const byId = await client.callTool({
       name: 'get_risk_report',
@@ -203,28 +188,6 @@ describe('buildMcpServer', () => {
     })
     expect(missing.isError ?? false).toBe(true)
 
-    await client.close()
-    await server.close()
-    db.close()
-  })
-
-  test('ui://risk-report/latest serves the MCP Apps shell (report fallback when unbundled)', async () => {
-    const { db, client, serverTransport, clientTransport, server } = connect()
-    await server.connect(serverTransport)
-    await client.connect(clientTransport)
-    const resource = await client.readResource({
-      uri: 'ui://risk-report/latest',
-    })
-    const contents = resource.contents[0]
-    expect(contents?.mimeType).toBe('text/html;profile=mcp-app')
-    const text = (contents as { text?: string }).text ?? ''
-    // The bundled shell exists after `bun run build` (../bin/mcp-app.html);
-    // without it the handler falls back to the no-reports placeholder.
-    if (existsSync(join(import.meta.dir, '../../bin/mcp-app.html'))) {
-      expect(text).toContain('Risk Report')
-    } else {
-      expect(text).toContain('No reports yet.')
-    }
     await client.close()
     await server.close()
     db.close()

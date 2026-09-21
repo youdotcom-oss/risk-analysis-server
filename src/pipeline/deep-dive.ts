@@ -5,7 +5,7 @@ import { generateText, stepCountIs, type ToolSet } from 'ai'
 import { updateSourceUtility } from '../db.ts'
 import { type Jev, type RiskProfile, scoreResults } from '../services/jev.ts'
 import { createDeepDiveTools, parseSearchResults } from '../services/you.ts'
-import { renderReport } from './report.ts'
+import { formatReport } from './report.ts'
 
 export type QueryToolCallStep = {
   content: { type: string; toolName?: string; input?: unknown }[]
@@ -210,12 +210,12 @@ async function assessSeverity(jev: Jev, profile: RiskProfile, scored: ScoredResu
 /**
  * Stages 2–4 for one profile: agentic proposal loop (Jev-gated searches),
  * retrieval + scoring, contents fetch, Markdown synthesis, and assembly
- * into the code-owned report shell (renderReport).
+ * into the code-owned report header (formatReport).
  */
 export async function deepDive(
   deps: DeepDiveDeps,
   profile: ProfileRecordLike,
-): Promise<{ severity: string; contentHtml: string }> {
+): Promise<{ severity: string; reportMarkdown: string }> {
   const queries = await proposeQueries(deps, profile)
   const scored = await retrieveAndScore(deps, queries)
   const top = topScored(scored)
@@ -238,11 +238,11 @@ export async function deepDive(
         `Scored findings: ${JSON.stringify(top)}\nFull article contents:\n${contents}`,
     }),
   ])
-  const contentHtml = renderReport({
+  const reportMarkdown = formatReport({
     profile,
     severity: severity as 'low' | 'medium' | 'critical',
     markdown: synthesis.text,
     generatedAt: Date.now(),
   })
-  return { severity, contentHtml }
+  return { severity, reportMarkdown }
 }

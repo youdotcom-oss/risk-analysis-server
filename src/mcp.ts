@@ -1,7 +1,5 @@
 import type { Database } from 'bun:sqlite'
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod/v4'
 import {
@@ -21,27 +19,6 @@ export type McpFactoryDeps = {
   /** Bound runSweepForTask: executes the sweep and mirrors status onto the task row. */
   sweepRunner: (profile: ProfileRecord, taskId: string) => Promise<SweepOutcome>
   taskTtlMs?: number
-}
-
-export const REPORT_URI = 'ui://risk-report/latest'
-/** MCP Apps (SEP-1865) resource MIME type — signals "render me in an iframe". */
-export const APP_MIME_TYPE = 'text/html;profile=mcp-app'
-
-/**
- * Locate the bundled MCP Apps view shell (bin/mcp-app.html from
- * `bun run build`). Resolved relative to this module so it works both from
- * the repo (src/) and the published bundle (bin/). Returns null when the
- * view was never built — callers fall back to stored-report HTML.
- */
-function readViewShell(): string | null {
-  for (const candidate of [join(import.meta.dir, 'mcp-app.html'), join(import.meta.dir, '..', 'bin', 'mcp-app.html')]) {
-    try {
-      return readFileSync(candidate, 'utf8')
-    } catch {
-      // try the next candidate
-    }
-  }
-  return null
 }
 
 export function buildMcpServer(deps: McpFactoryDeps): McpServer {
@@ -108,10 +85,6 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
         profileId: z.string().min(1).optional(),
         task_id: z.string().min(1).optional(),
       }),
-      // MCP Apps binding (SEP-1865): after the sweep the host renders the
-      // report resource in a sandboxed iframe. Text-only hosts fall back to
-      // the JSON content below — the binding is additive.
-      _meta: { ui: { resourceUri: REPORT_URI } },
     },
     async ({ profileId, task_id }) => {
       // Poll branch: status/result of an in-flight or finished sweep.
@@ -252,37 +225,13 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
             text: JSON.stringify({
               severity: report.severity,
               profile: report.profile_title,
-              report_html: report.content_html,
+              report_markdown: report.content_html,
             }),
           },
         ],
       }
     },
   )
-
-  server.registerResource('risk-report-latest', REPORT_URI, { mimeType: APP_MIME_TYPE }, async () => {
-    const report = deps.db
-      .query<{ content_html: string }, [string]>(
-        `SELECT content_html FROM risk_reports
-           WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
-      )
-      .get(deps.userId)
-    // Serve the bundled MCP Apps shell when available (bun run build emits
-    // bin/mcp-app.html): it handshakes with the host and pulls the briefing
-    // via get_risk_report. When the view bundle is absent, fall back to the
-    // stored report HTML so resource readers still get meaningful content.
-    const shell = readViewShell()
-    const text = shell || (report?.content_html ?? '<html><body><p>No reports yet.</p></body></html>')
-    return {
-      contents: [
-        {
-          uri: REPORT_URI,
-          mimeType: APP_MIME_TYPE,
-          text,
-        },
-      ],
-    }
-  })
 
   return server
 }
