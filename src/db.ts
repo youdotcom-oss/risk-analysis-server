@@ -261,17 +261,21 @@ export function getSweepTask(db: Database, taskId: string): SweepTaskRow | null 
 function transition(db: Database, taskId: string, status: 'completed' | 'failed' | 'cancelled', value?: unknown): void {
   // Unknown task ids and already-terminal tasks are natural no-ops of the
   // WHERE clause: cancellation is cooperative, transitions are idempotent.
+  // Terminal states extend the TTL (24h): a result must outlive the original
+  // window — a sweep completing into an expired row would be unreadable.
   db.query(
     `UPDATE sweep_tasks
      SET status = $status,
          result_json = CASE WHEN $status = 'completed' THEN $payload ELSE result_json END,
          error_json = CASE WHEN $status = 'failed' THEN $payload ELSE error_json END,
-         updated_at = $now
+         updated_at = $now,
+         ttl_at = $ttl
      WHERE task_id = $taskId AND status = 'working'`,
   ).run({
     status,
     payload: value === undefined ? null : JSON.stringify(value),
     now: Date.now(),
+    ttl: Date.now() + 24 * 60 * 60 * 1000,
     taskId,
   })
 }

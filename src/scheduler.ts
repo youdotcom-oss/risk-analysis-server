@@ -39,7 +39,7 @@ export class ProfileScheduler {
   constructor(
     private readonly db: Database,
     private readonly userId: string,
-    private readonly opts: { register?: CronRegistrar; sweep?: SweepFn } = {},
+    private readonly opts: { register?: CronRegistrar; sweep?: SweepFn; ttlMs?: number } = {},
   ) {}
 
   private registrar(): CronRegistrar {
@@ -52,11 +52,19 @@ export class ProfileScheduler {
   }
 
   /** Run one scheduled sweep for a profile, guarded against recent runs. */
-  private async sweepProfile(profile: ProfileRecordRow): Promise<void> {
+  private async sweepProfile(registered: ProfileRecordRow): Promise<void> {
+    // Fire-time fresh read: profiles edited after registration sweep with
+    // their current locations/triggers, not the registration snapshot.
+    const profile = getAllActiveProfiles(this.db).find((p) => p.id === registered.id) ?? registered
     if (hasRecentSweep(this.db, profile.id)) return
     const taskId = crypto.randomUUID()
     try {
-      createSweepTask(this.db, { taskId, userId: profile.userId, profileId: profile.id, ttlMs: 30 * 60 * 1000 })
+      createSweepTask(this.db, {
+        taskId,
+        userId: profile.userId,
+        profileId: profile.id,
+        ttlMs: this.opts.ttlMs ?? 30 * 60 * 1000,
+      })
       const outcome = await this.sweep(profile)
       completeSweepTask(this.db, taskId, outcome)
     } catch (error) {

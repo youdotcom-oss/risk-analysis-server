@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { openDb, saveProfile, setSweepSchedule } from '../db.ts'
+import { getSweepTask, openDb, saveProfile, setSweepSchedule } from '../db.ts'
 import { type CronHandle, isValidCron, ProfileScheduler } from '../scheduler.ts'
 
 const tmpDirs: string[] = []
@@ -146,6 +146,57 @@ describe('ProfileScheduler.sweepProfile failure path', () => {
     const row = db.query<{ error_json: string }, []>('SELECT error_json FROM sweep_tasks').get()
     const parsed = JSON.parse(row?.error_json ?? '{}') as { message?: string }
     expect(parsed.message).toContain('503')
+    db.close()
+  })
+})
+
+describe('task TTL semantics', () => {
+  test('a completed result stays readable after the original TTL expires', async () => {
+    const db = tempDb()
+    saveProfile(db, { id: 'p1', userId: 'local-user', title: 't', locations: [], triggers: [] })
+    const jobs = new Map<string, () => unknown>()
+    const scheduler = new ProfileScheduler(db, 'local-user', {
+      register: (expr, fn) => {
+        jobs.set(expr, fn)
+        return { stop: () => jobs.delete(expr) }
+      },
+      sweep: async () => ({ escalated: true, severity: 'medium' }),
+      ttlMs: 1,
+    })
+    scheduler.apply('p1', '* * * * *')
+    // sweep takes longer than its own TTL window (ttlMs: 1): the completion
+    // lands into an already-expired row — the result must still be readable
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await jobs.get('* * * * *')!()
+    const taskId = db.query<{ task_id: string }, []>('SELECT task_id FROM sweep_tasks').get()?.task_id ?? ''
+    const row = getSweepTask(db, taskId)
+    expect(row?.status).toBe('completed')
+    expect(row?.result_json).toContain('medium')
+    db.close()
+  })
+})
+
+describe('ProfileScheduler snapshot freshness', () => {
+  test('cron fires read the profile as it is at fire time, not registration time', async () => {
+    const db = tempDb()
+    saveProfile(db, { id: 'p1', userId: 'local-user', title: 'old title', locations: ['Salem'], triggers: [] })
+    const seen: string[] = []
+    const jobs = new Map<string, () => unknown>()
+    const scheduler = new ProfileScheduler(db, 'local-user', {
+      register: (expr, fn) => {
+        jobs.set(expr, fn)
+        return { stop: () => jobs.delete(expr) }
+      },
+      sweep: async (profile) => {
+        seen.push(profile.title)
+        return { escalated: false }
+      },
+    })
+    scheduler.apply('p1', '* * * * *')
+    // profile edited after registration
+    saveProfile(db, { id: 'p1', userId: 'local-user', title: 'new title', locations: ['Salem'], triggers: [] })
+    await jobs.get('* * * * *')!()
+    expect(seen).toEqual(['new title'])
     db.close()
   })
 })
