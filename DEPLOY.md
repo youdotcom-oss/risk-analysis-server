@@ -62,10 +62,8 @@ bearer tokens must travel over HTTPS.
 | `RISK_CRON_SCHEDULE` | both entries | global cron schedule for sweeps (UTC); stdio sessions scope it to their lifetime |
 | `RISK_ALLOWED_HOSTS` | `server.ts` | comma-separated hostnames for DNS-rebinding protection |
 | `RISK_ISSUER_URL` | `server.ts` | advertised authorization server for OAuth clients |
-| `OPENROUTER_API_KEY` | openrouter provider | OpenRouter API key for the sweep model |
-| `RISK_PROVIDER` | both | `openrouter` (default) or `ollama` |
+| `OPENROUTER_API_KEY` | both | OpenRouter API key for the sweep model |
 | `YDC_API_KEY` | both | You.com API key (hosted MCP server auth) |
 | `YDC_MCP_URL` | both | override for local You.com MCP package testing |
 | `TYPESAFE_API_KEY` | both | TypeSafe AI (Jev) API key |
-| `OLLAMA_BASE_URL` | — | removed (Ollama support removed; model runs via OpenRouter) |
-| `RISK_MODEL` | both | model id, provider-scoped (OpenRouter default `qwen/qwen3.8-27b`; ollama default `qwen3.8:27b`) |
+| `RISK_MODEL` | both | OpenRouter model id (default `qwen/qwen3.8-27b`) |

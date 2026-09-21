@@ -442,8 +442,8 @@ describe('deepDive', () => {
 
   test('caps the synthesis prompt budget when article contents are huge', async () => {
     // Regression: fetchContents once joined full page text unbounded; 10 real
-    // pages produced a ~212k-token synthesis prompt (muse-glimmer caps at
-    // 131k). Markers deep inside a giant page prove truncation happened.
+    // pages produced a ~212k-token synthesis prompt (the era's 131k-context
+    // model capped at 131k). Markers deep inside a giant page prove truncation happened.
     // Marker sits at ~11k chars: past the 12k per-page cap's cut is at 12k,
     // so it must be beyond 12k. Place at 13k.
     const hugePage = `${'A'.repeat(13_000)}PAGE-MARKER-13K${'B'.repeat(100_000)}`

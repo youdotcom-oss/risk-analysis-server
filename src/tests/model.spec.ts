@@ -32,10 +32,9 @@ describe('getModel', () => {
     expect(model.modelId).toBe('meta/muse-spark-1.3')
   })
 
-  // Regression: the former ollama branch defaulted its base URL to
-  // 'http://localhost:11434/api' while the SDK appended /api/chat itself,
-  // yielding /api/api/chat -> 404. Wiring is behavior: assert the exact
-  // request path the OpenRouter branch hits (never a doubled segment).
+  // Regression (history): an earlier provider branch doubled a path segment
+  // (/api/api/chat -> 404). Wiring is behavior: assert the exact request
+  // path this branch hits.
   test('openrouter branch posts to /api/v1/chat/completions', async () => {
     process.env.OPENROUTER_API_KEY = 'test-key'
     delete process.env.RISK_MODEL
@@ -64,30 +63,5 @@ describe('getModel', () => {
       globalThis.fetch = savedFetch
     }
     expect(paths).toEqual(['/api/v1/chat/completions'])
-  })
-})
-
-describe('getModel provider selection', () => {
-  test('RISK_PROVIDER=ollama selects the local model without an OpenRouter key', () => {
-    delete process.env.OPENROUTER_API_KEY
-    process.env.RISK_PROVIDER = 'ollama'
-    delete process.env.RISK_MODEL
-    const model = getModel()
-    expect(model.provider).toBe('ollama')
-    expect(model.modelId).toBe('qwen3.8:27b')
-  })
-
-  test('ollama branch honors RISK_MODEL override (local tag form)', () => {
-    process.env.RISK_PROVIDER = 'ollama'
-    process.env.RISK_MODEL = 'muse-glimmer'
-    const model = getModel()
-    expect(model.provider).toBe('ollama')
-    expect(model.modelId).toBe('muse-glimmer')
-  })
-
-  test('default (no provider, no key) names the missing key and how to pick ollama', () => {
-    delete process.env.OPENROUTER_API_KEY
-    delete process.env.RISK_PROVIDER
-    expect(() => getModel()).toThrow(/OPENROUTER_API_KEY.*RISK_PROVIDER=ollama/s)
   })
 })
