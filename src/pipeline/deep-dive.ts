@@ -221,7 +221,7 @@ async function assessSeverity(jev: Jev, profile: RiskProfile, scored: ScoredResu
 export async function deepDive(
   deps: DeepDiveDeps,
   profile: ProfileRecordLike,
-): Promise<{ severity: string; reportMarkdown: string }> {
+): Promise<{ severity: string; reportMarkdown: string; knowledgeHits: number }> {
   const queries = await proposeQueries(deps, profile)
   const scored = await retrieveAndScore(deps, queries, profile)
   const top = topScored(scored)
@@ -252,5 +252,7 @@ export async function deepDive(
     markdown: synthesis.text,
     generatedAt: Date.now(),
   })
-  return { severity, reportMarkdown }
+  // Diagnostics: how many licensed knowledge facts reached synthesis
+  const knowledgeHits = top.filter((item) => item.url === '').length
+  return { severity, reportMarkdown, knowledgeHits }
 }

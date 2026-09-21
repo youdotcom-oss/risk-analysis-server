@@ -445,6 +445,8 @@ describe('deepDive', () => {
     )
 
     expect(result.severity).toBe('critical')
+    // the url-less knowledge fact reached synthesis — count it in the outcome
+    expect(result.knowledgeHits).toBe(1)
     expect(result.reportMarkdown).toContain('Executive briefing.')
     // contents fetched for the scored result's URL
     expect(contentsCalls).toEqual([{ urls: ['https://hamburg.example/news'] }])

@@ -19,6 +19,8 @@ export type SweepOutcome = {
   escalated: boolean
   severity?: string
   reportId?: string
+  /** Licensed knowledge facts (url-less) that reached synthesis. */
+  knowledgeHits?: number
 }
 
 export type SweepDeps = {
@@ -108,7 +110,12 @@ export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise
       contentHtml: report.reportMarkdown,
       now: Date.now(),
     })
-  return { escalated: true, severity: report.severity, reportId }
+  return {
+    escalated: true,
+    severity: report.severity,
+    reportId,
+    knowledgeHits: report.knowledgeHits,
+  }
 }
 
 export type SweepResult = { profileId: string; outcome: SweepOutcome } | { profileId: string; error: string }
