@@ -130,7 +130,7 @@ function getServerApp(): Hono {
  */
 if (import.meta.main) {
   const entryDb = openDb(process.env.RISK_DB_PATH ?? defaultDbPath())
-  const entryScheduler = new ProfileScheduler(entryDb, 'local-user', {
+  const entryScheduler = new ProfileScheduler(entryDb, {
     sweep: async (profile) =>
       runSweep(
         buildSweepDeps({

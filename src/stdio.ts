@@ -29,7 +29,7 @@ function sweepDeps(): SweepDeps {
   return cachedSweepDeps
 }
 
-const scheduler = new ProfileScheduler(db, 'local-user', {
+const scheduler = new ProfileScheduler(db, {
   scope: 'session',
   sweep: async (profile) => runSweep(sweepDeps(), profile),
 })

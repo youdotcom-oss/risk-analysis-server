@@ -171,22 +171,21 @@ export async function sweepAllProfiles(deps: SweepDeps, profiles: ProfileRecord[
   // Index-addressed so results come back in input order regardless of
   // per-profile completion timing.
   const results: SweepResult[] = new Array(profiles.length)
-  for (const batch of chunk(profiles, 5)) {
+  for (const batch of chunk([...profiles.entries()], 5)) {
     await Promise.all(
-      batch.map(async (p) => {
-        const index = profiles.indexOf(p)
-        try {
-          results[index] = {
-            profileId: p.id,
-            outcome: await runSweep(deps, p),
-          }
-        } catch (error) {
-          results[index] = {
-            profileId: p.id,
-            error: error instanceof Error ? error.message : String(error),
-          }
-        }
-      }),
+      batch.map(([index, p]) =>
+        runSweep(deps, p)
+          .then((outcome): SweepResult => ({ profileId: p.id, outcome }))
+          .catch(
+            (error): SweepResult => ({
+              profileId: p.id,
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          )
+          .then((result) => {
+            results[index] = result
+          }),
+      ),
     )
   }
   return results

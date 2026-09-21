@@ -1,5 +1,5 @@
 import type { Database } from 'bun:sqlite'
-import { completeSweepTask, createSweepTask, failSweepTask, getAllActiveProfiles, type ProfileRecordRow } from './db.ts'
+import { completeSweepTask, createSweepTask, failSweepTask, getActiveProfiles, type ProfileRecordRow } from './db.ts'
 import type { SweepOutcome } from './pipeline/sweep.ts'
 
 export type CronHandle = { stop(): void }
@@ -42,7 +42,6 @@ export class ProfileScheduler {
 
   constructor(
     private readonly db: Database,
-    private readonly userId: string,
     private readonly opts: {
       register?: CronRegistrar
       sweep?: SweepFn
@@ -66,7 +65,7 @@ export class ProfileScheduler {
   private async sweepProfile(registered: ProfileRecordRow): Promise<void> {
     // Fire-time fresh read: profiles edited after registration sweep with
     // their current locations/triggers, not the registration snapshot.
-    const profile = getAllActiveProfiles(this.db).find((p) => p.id === registered.id) ?? registered
+    const profile = getActiveProfiles(this.db).find((p) => p.id === registered.id) ?? registered
     if (hasRecentSweep(this.db, profile.id)) return
     const taskId = crypto.randomUUID()
     try {
@@ -96,7 +95,7 @@ export class ProfileScheduler {
     this.clear(profileId)
     if (!schedule) return
     if (!isValidCron(schedule)) throw new Error(`Invalid cron expression: ${schedule}`)
-    const profile = getAllActiveProfiles(this.db).find((p) => p.id === profileId)
+    const profile = getActiveProfiles(this.db).find((p) => p.id === profileId)
     if (!profile) throw new Error(`No active profile ${profileId}`)
     const handle = this.registrar()(schedule, () => {
       void this.sweepProfile(profile).catch(() => {})
@@ -115,7 +114,7 @@ export class ProfileScheduler {
     if (!isValidCron(schedule)) throw new Error(`Invalid cron expression: ${schedule}`)
     this.globalHandle = this.registrar()(schedule, () => {
       void (async () => {
-        for (const profile of getAllActiveProfiles(this.db)) {
+        for (const profile of getActiveProfiles(this.db)) {
           await this.sweepProfile(profile)
         }
       })().catch(() => {})
@@ -124,7 +123,7 @@ export class ProfileScheduler {
 
   /** Apply all DB-stored per-profile schedules (call at startup). */
   applyStored(): void {
-    for (const profile of getAllActiveProfiles(this.db)) {
+    for (const profile of getActiveProfiles(this.db)) {
       if (!profile.sweepSchedule) continue
       try {
         this.apply(profile.id, profile.sweepSchedule)

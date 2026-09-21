@@ -47,7 +47,6 @@ CREATE TABLE IF NOT EXISTS sweep_tasks (
   user_id TEXT NOT NULL,
   profile_id TEXT NOT NULL,
   status TEXT NOT NULL,
-  status_message TEXT,
   result_json TEXT,
   error_json TEXT,
   created_at INTEGER NOT NULL,
@@ -153,63 +152,28 @@ export function saveProfile(db: Database, profile: Omit<ProfileRecordRow, 'isAct
   })
 }
 
-export function getActiveProfiles(db: Database, userId: string): ProfileRecordRow[] {
-  return db
-    .query<
-      {
-        id: string
-        user_id: string
-        title: string
-        locations: string
-        policy_triggers: string
-        is_active: number
-        sweep_schedule: string | null
-      },
-      [string]
-    >(
-      `SELECT id, user_id, title, locations, policy_triggers, is_active, sweep_schedule
-       FROM risk_profiles WHERE user_id = ? AND is_active = 1 ORDER BY title`,
-    )
-    .all(userId)
-    .map((row) => ({
-      id: row.id,
-      userId: row.user_id,
-      title: row.title,
-      locations: JSON.parse(row.locations) as string[],
-      triggers: JSON.parse(row.policy_triggers) as string[],
-      isActive: row.is_active === 1,
-      sweepSchedule: row.sweep_schedule ?? null,
-    }))
-}
-
-/** Cron-path variant: every tenant's active profiles, for the batched sweep. */
-export function getAllActiveProfiles(db: Database): ProfileRecordRow[] {
-  return db
-    .query<
-      {
-        id: string
-        user_id: string
-        title: string
-        locations: string
-        policy_triggers: string
-        is_active: number
-        sweep_schedule: string | null
-      },
-      []
-    >(
-      `SELECT id, user_id, title, locations, policy_triggers, is_active, sweep_schedule
-       FROM risk_profiles WHERE is_active = 1 ORDER BY title`,
-    )
-    .all()
-    .map((row) => ({
-      id: row.id,
-      userId: row.user_id,
-      title: row.title,
-      locations: JSON.parse(row.locations) as string[],
-      triggers: JSON.parse(row.policy_triggers) as string[],
-      isActive: row.is_active === 1,
-      sweepSchedule: row.sweep_schedule ?? null,
-    }))
+export function getActiveProfiles(db: Database, userId?: string): ProfileRecordRow[] {
+  const sql = `SELECT id, user_id, title, locations, policy_triggers, is_active, sweep_schedule
+    FROM risk_profiles WHERE is_active = 1 ${userId ? 'AND user_id = ?' : ''} ORDER BY title`
+  type Row = {
+    id: string
+    user_id: string
+    title: string
+    locations: string
+    policy_triggers: string
+    is_active: number
+    sweep_schedule: string | null
+  }
+  const rows = userId ? db.query<Row, [string]>(sql).all(userId) : db.query<Row, []>(sql).all()
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    title: row.title,
+    locations: JSON.parse(row.locations) as string[],
+    triggers: JSON.parse(row.policy_triggers) as string[],
+    isActive: row.is_active === 1,
+    sweepSchedule: row.sweep_schedule ?? null,
+  }))
 }
 
 /** Persist (or clear with null) a profile's scheduled-sweep cron expression. */
@@ -233,7 +197,6 @@ export type SweepTaskRow = {
   user_id: string
   profile_id: string
   status: string
-  status_message: string | null
   result_json: string | null
   error_json: string | null
   created_at: number

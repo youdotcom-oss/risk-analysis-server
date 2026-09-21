@@ -115,12 +115,6 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
             ],
           }
         }
-        if (task.status === 'cancelled') {
-          return {
-            isError: true,
-            content: [{ type: 'text', text: `Sweep ${task_id} was cancelled.` }],
-          }
-        }
         if (task.status === 'failed') {
           return {
             isError: true,

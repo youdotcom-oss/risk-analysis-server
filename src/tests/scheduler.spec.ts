@@ -40,7 +40,7 @@ describe('ProfileScheduler', () => {
     const db = tempDb()
     saveProfile(db, { id: 'p1', userId: 'local-user', title: 't', locations: [], triggers: [] })
     const registrar = new FakeRegistrar()
-    const scheduler = new ProfileScheduler(db, 'local-user', {
+    const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => registrar.register(expr, fn),
       sweep: async () => ({ escalated: false }),
     })
@@ -55,7 +55,7 @@ describe('ProfileScheduler', () => {
     const db = tempDb()
     saveProfile(db, { id: 'p1', userId: 'local-user', title: 't', locations: [], triggers: [] })
     const registrar = new FakeRegistrar()
-    const scheduler = new ProfileScheduler(db, 'local-user', {
+    const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => registrar.register(expr, fn),
       sweep: async () => ({ escalated: false }),
     })
@@ -69,7 +69,7 @@ describe('ProfileScheduler', () => {
     saveProfile(db, { id: 'p1', userId: 'local-user', title: 't', locations: [], triggers: [] })
     let sweeps = 0
     const jobs = new Map<string, () => unknown>()
-    const scheduler = new ProfileScheduler(db, 'local-user', {
+    const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => {
         jobs.set(expr, fn)
         return { stop: () => jobs.delete(expr) }
@@ -95,7 +95,7 @@ describe('ProfileScheduler', () => {
     saveProfile(db, { id: 'p2', userId: 'local-user', title: 'b', locations: [], triggers: [] })
     setSweepSchedule(db, 'p1', '0 9 * * *')
     const registrar = new FakeRegistrar()
-    const scheduler = new ProfileScheduler(db, 'local-user', {
+    const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => registrar.register(expr, fn),
       sweep: async () => ({ escalated: false }),
     })
@@ -114,7 +114,7 @@ describe('ProfileScheduler.applyStored', () => {
     setSweepSchedule(db, 'p-ok', '0 9 * * 1')
     setSweepSchedule(db, 'p-bad', 'a b c d e') // passes isValidCron, Bun.cron rejects
     const registrar = new FakeRegistrar()
-    const scheduler = new ProfileScheduler(db, 'local-user', {
+    const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => {
         if (expr === 'a b c d e') throw new Error('Invalid cron expression: value out of range for field')
         return registrar.register(expr, fn)
@@ -132,7 +132,7 @@ describe('ProfileScheduler.sweepProfile failure path', () => {
     const db = tempDb()
     saveProfile(db, { id: 'p1', userId: 'local-user', title: 't', locations: [], triggers: [] })
     const jobs = new Map<string, () => unknown>()
-    const scheduler = new ProfileScheduler(db, 'local-user', {
+    const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => {
         jobs.set(expr, fn)
         return { stop: () => jobs.delete(expr) }
@@ -155,7 +155,7 @@ describe('task TTL semantics', () => {
     const db = tempDb()
     saveProfile(db, { id: 'p1', userId: 'local-user', title: 't', locations: [], triggers: [] })
     const jobs = new Map<string, () => unknown>()
-    const scheduler = new ProfileScheduler(db, 'local-user', {
+    const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => {
         jobs.set(expr, fn)
         return { stop: () => jobs.delete(expr) }
@@ -182,7 +182,7 @@ describe('ProfileScheduler snapshot freshness', () => {
     saveProfile(db, { id: 'p1', userId: 'local-user', title: 'old title', locations: ['Salem'], triggers: [] })
     const seen: string[] = []
     const jobs = new Map<string, () => unknown>()
-    const scheduler = new ProfileScheduler(db, 'local-user', {
+    const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => {
         jobs.set(expr, fn)
         return { stop: () => jobs.delete(expr) }
