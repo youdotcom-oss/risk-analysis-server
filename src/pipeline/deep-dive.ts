@@ -3,7 +3,7 @@ import type { MCPClient } from '@ai-sdk/mcp'
 import { choice } from '@typesafe-ai/sdk'
 import { generateText, stepCountIs, type ToolSet } from 'ai'
 import { updateSourceUtility } from '../db.ts'
-import { type Jev, type RiskProfile, scoreResults } from '../services/jev.ts'
+import { type Jev, type RiskProfile, type ScoredResult, scoreResults } from '../services/jev.ts'
 import { createDeepDiveTools, parseSearchResults } from '../services/you.ts'
 import { formatReport } from './report.ts'
 
@@ -58,13 +58,6 @@ export type ProfileRecordLike = RiskProfile & {
   userId: string
 }
 
-export type ScoredResult = {
-  url: string
-  domain: string
-  snippet: string
-  score: number
-}
-
 function domainOf(url: string): string {
   try {
     return new URL(url).host
@@ -102,18 +95,27 @@ export async function retrieveAndScore(
       return parseSearchResults(text).map((item) => ({
         url: item.url,
         snippet: item.description,
+        attribution: item.attribution,
+        asOf: item.asOf,
       }))
     }),
   )
 
-  // dedupe by URL, first-seen order
+  // dedupe by URL (knowledge facts have url '' — dedupe them by title),
+  // first-seen order; provenance rides through
   const seen = new Set<string>()
-  const results: { url: string; snippet: string }[] = []
+  const results: { url: string; snippet: string; attribution?: string[]; asOf?: string }[] = []
   for (const batch of rawResults) {
     for (const item of batch) {
-      if (!seen.has(item.url)) {
-        seen.add(item.url)
-        results.push({ url: item.url, snippet: item.snippet ?? '' })
+      const key = item.url || item.snippet
+      if (!seen.has(key)) {
+        seen.add(key)
+        results.push({
+          url: item.url,
+          snippet: item.snippet ?? '',
+          attribution: item.attribution,
+          asOf: item.asOf,
+        })
       }
     }
   }
@@ -132,8 +134,10 @@ export async function retrieveAndScore(
   return scored.map((item) => ({
     url: item.url,
     domain: domainOf(item.url),
-    snippet: results.find((r) => r.url === item.url)?.snippet ?? '',
+    snippet: item.snippet,
     score: item.score,
+    attribution: item.attribution,
+    asOf: item.asOf,
   }))
 }
 

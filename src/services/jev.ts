@@ -65,7 +65,12 @@ export async function validateQueries(jev: Jev, profile: RiskProfile, queries: s
 
 export type ScoredResult = {
   url: string
+  snippet: string
   score: number
+  /** Licensed-data provider names (knowledge facts only). */
+  attribution?: string[]
+  /** Data-as-of date (knowledge facts only). */
+  asOf?: string
 }
 
 const RELEVANCY_RUBRIC = [
@@ -75,10 +80,12 @@ const RELEVANCY_RUBRIC = [
 ] as const
 
 /** Jev Gate 3: score search results against the profile's policy triggers. */
+const PROVENANCE_BOOST = 1
+
 export async function scoreResults(
   jev: Jev,
   profile: RiskProfile,
-  results: { url: string; snippet: string }[],
+  results: { url: string; snippet: string; attribution?: string[]; asOf?: string }[],
 ): Promise<ScoredResult[]> {
   // MINIMAL: blunt caps keep the systemOne payload within the TypeSafe
   // input limit (live runs hit 400 max_tokens_exceeded with ~100 results).
@@ -91,15 +98,35 @@ export async function scoreResults(
   const questions = Object.fromEntries(
     capped.map((result, index) => [
       `r${index}`,
-      score(`How relevant is the result "${result.snippet}" (from ${result.url}) to the profile?`, RELEVANCY_RUBRIC),
+      score(
+        // Knowledge facts carry licensed provenance: naming the provider and
+        // data date lets Jev weigh them with their sourcing in view.
+        `How relevant is the result "${result.snippet}" (from ${result.url}) to the profile?` +
+          (result.attribution?.length
+            ? ` This is a licensed ${result.attribution.join(', ')} data result` +
+              (result.asOf ? ` as of ${result.asOf}` : '') +
+              '.'
+            : ''),
+        RELEVANCY_RUBRIC,
+      ),
     ]),
   )
   const result = await jev.systemOne({
     state: { profile, results: capped },
     questions,
   })
-  return results.map((item, index) => ({
-    url: item.url,
-    score: index < capped.length ? answerAt(result.answers as Record<string, { score: number }>, `r${index}`).score : 1,
-  }))
+  return results.map((item, index) => {
+    const base =
+      index < capped.length ? answerAt(result.answers as Record<string, { score: number }>, `r${index}`).score : 1
+    const isKnowledge = Boolean(item.attribution?.length)
+    return {
+      url: item.url,
+      snippet: item.snippet,
+      attribution: item.attribution,
+      asOf: item.asOf,
+      // Licensed facts get a provenance boost (capped at the rubric max):
+      // authoritative data outranks equivalent web findings.
+      score: isKnowledge ? Math.min(base + PROVENANCE_BOOST, RELEVANCY_RUBRIC.length - 1) : base,
+    }
+  })
 }

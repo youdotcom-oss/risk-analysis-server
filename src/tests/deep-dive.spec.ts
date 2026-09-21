@@ -257,6 +257,7 @@ describe('retrieveAndScore', () => {
                         title: 'Rotterdam port throughput (Monthly)',
                         description: 'Latest throughput was 14.6M TEU in Aug 2026.',
                         attribution: [{ name: 'Fiscal.ai' }],
+                        as_of: '2026-08-31',
                       },
                     ],
                   },
@@ -268,9 +269,20 @@ describe('retrieveAndScore', () => {
       },
     }
     const db = openDb(tempDbPath())
+    const questionsSeen: string[] = []
     const deps = {
       client: { tools: () => Promise.resolve(tools) } as never,
-      jev: createJev(jevStub([2.5])),
+      jev: {
+        systemOne(request: unknown) {
+          const questions = (request as { questions: Record<string, unknown> }).questions
+          for (const q of Object.values(questions)) questionsSeen.push(JSON.stringify(q))
+          return Promise.resolve({
+            answers: Object.fromEntries(
+              Object.keys(questions).map((k, i) => [k, { type: 'score', score: [2.5, 2, 1][i] ?? 1, confidence: 0.9 }]),
+            ),
+          }) as never
+        },
+      } as unknown as SystemOneCaller,
       db,
       userId: 'local-user',
       profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
@@ -281,6 +293,11 @@ describe('retrieveAndScore', () => {
     // knowledge fact (no url) is retained as a scoring candidate
     expect(scored.map((r) => r.url)).toEqual(['https://maritime-executive.com/strike', 'https://news.example/port', ''])
     expect(scored[2]?.snippet).toContain('14.6M TEU')
+    // provenance carried through scoring
+    expect(scored[2]?.attribution).toEqual(['Fiscal.ai'])
+    expect(scored[2]?.asOf).toBe('2026-08-31')
+    // the scoring question names the licensed provider so Jev judges with provenance
+    expect(questionsSeen.some((q) => q.includes('Fiscal.ai') && q.includes('licensed'))).toBe(true)
     // description promoted to snippet
     expect(scored[0]?.snippet).toBe('Dutch union sets national strike')
     db.close()
@@ -637,6 +654,7 @@ describe('parseSearchResults knowledge handling', () => {
             title: 'NVIDIA Total Revenues (Quarterly)',
             description: 'Latest value was $96,221,000,000 for fiscal Q2 2027.',
             attribution: [{ name: 'Fiscal.ai' }],
+            as_of: '2026-04-26',
           },
         ],
       },
@@ -646,6 +664,9 @@ describe('parseSearchResults knowledge handling', () => {
     expect(knowledge).toBeDefined()
     expect(knowledge?.url).toBe('') // non-fetchable fact: no page to crawl
     expect(knowledge?.description).toContain('$96,221,000,000')
+    // provenance must survive normalization: provider + data date
+    expect(knowledge?.attribution).toEqual(['Fiscal.ai'])
+    expect(knowledge?.asOf).toBe('2026-04-26')
     // web results untouched
     expect(results.find((r) => r.url === 'https://x.example/a')).toBeDefined()
   })

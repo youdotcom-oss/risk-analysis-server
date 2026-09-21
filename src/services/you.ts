@@ -23,6 +23,10 @@ export type NormalizedSearchResult = {
   url: string
   title: string
   description: string
+  /** Licensed-data provider names (knowledge results only). */
+  attribution?: string[]
+  /** The date the underlying data covers (knowledge results only). */
+  asOf?: string
 }
 
 /**
@@ -46,6 +50,8 @@ export function parseSearchResults(text: string): NormalizedSearchResult[] {
         title?: unknown
         snippet?: unknown
         description?: unknown
+        attribution?: unknown
+        as_of?: unknown
       }
       // Knowledge results (licensed facts, e.g. Fiscal.ai financials) carry
       // no url — they are kept with url: '' and flow into synthesis, but are
@@ -63,6 +69,12 @@ export function parseSearchResults(text: string): NormalizedSearchResult[] {
           url,
           title: typeof record.title === 'string' ? record.title : '',
           description,
+          attribution: Array.isArray(record.attribution)
+            ? record.attribution
+                .map((a) => (a as { name?: unknown }).name)
+                .filter((name): name is string => typeof name === 'string')
+            : undefined,
+          asOf: typeof record.as_of === 'string' ? record.as_of : undefined,
         },
       ]
     })

@@ -85,8 +85,8 @@ describe('scoreResults', () => {
     const request = captured[0] as { state: Record<string, unknown> }
     expect(request.state.results).toHaveLength(2)
     expect(scores).toEqual([
-      { url: 'https://a.example', score: 2.1 },
-      { url: 'https://b.example', score: 0.3 },
+      { url: 'https://a.example', snippet: 'Hamburg port strike halts operations', score: 2.1 },
+      { url: 'https://b.example', snippet: 'Local bakery opens downtown', score: 0.3 },
     ])
   })
 })
