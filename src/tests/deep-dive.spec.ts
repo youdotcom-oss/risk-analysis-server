@@ -261,6 +261,94 @@ describe('deepDive', () => {
     db.close()
   })
 
+  test('caps the synthesis prompt budget when article contents are huge', async () => {
+    // Regression: fetchContents once joined full page text unbounded; 10 real
+    // pages produced a ~212k-token synthesis prompt (muse-glimmer caps at
+    // 131k). Markers deep inside a giant page prove truncation happened.
+    // Marker sits at ~11k chars: past the 12k per-page cap's cut is at 12k,
+    // so it must be beyond 12k. Place at 13k.
+    const hugePage = `${'A'.repeat(13_000)}PAGE-MARKER-13K${'B'.repeat(100_000)}`
+    const tools = {
+      'you-search': {
+        inputSchema: jsonSchema({ type: 'object' }),
+        async execute() {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  results: [{ url: 'https://hamburg.example/news', snippet: 'strike' }],
+                }),
+              },
+            ],
+          }
+        },
+      },
+      'you-contents': {
+        inputSchema: jsonSchema({ type: 'object' }),
+        async execute() {
+          return { content: [{ type: 'text', text: hugePage }] }
+        },
+      },
+    }
+    const db = openDb(tempDbPath())
+    let generateCall = 0
+    let synthesisPrompt = ''
+    const model = new MockLanguageModelV4({
+      doGenerate: (async (options: { prompt?: unknown }) => {
+        generateCall++
+        if (generateCall === 1) {
+          return {
+            content: [
+              {
+                type: 'tool-call',
+                toolCallId: 'c1',
+                toolName: 'you-search',
+                input: { query: 'Hamburg Port strike' } as never,
+              },
+            ],
+            finishReason: 'tool-calls' as never,
+            usage,
+            response,
+            warnings: [],
+          }
+        }
+        synthesisPrompt = JSON.stringify(options?.prompt ?? '')
+        return {
+          content: [{ type: 'text', text: '## Summary\n\nok.' }],
+          finishReason: 'stop' as never,
+          usage,
+          response,
+          warnings: [],
+        }
+      }) as never,
+    })
+
+    await deepDive(
+      {
+        model: model as never,
+        client: { tools: () => Promise.resolve(tools) } as never,
+        jev: createJev(jevForDeepDive(2.5)),
+        db,
+        userId: 'local-user',
+      },
+      {
+        id: 'p1',
+        userId: 'local-user',
+        title: 'EU port operations',
+        locations: ['Hamburg Port'],
+        triggers: ['strike action'],
+      },
+    )
+
+    // The page is ~113k chars; the per-page cap (12k) must have truncated it:
+    // the 13k-char marker never reaches the prompt.
+    expect(synthesisPrompt).not.toContain('PAGE-MARKER-13K')
+    // ...but the page head does, proving content still flows through.
+    expect(synthesisPrompt).toContain('AAAA')
+    db.close()
+  })
+
   test('injects the fallback template when the loop yields no queries', async () => {
     const { tools } = stubContentTools()
     const searchInputs: { query?: unknown }[] = []

@@ -132,6 +132,11 @@ const PROPOSAL_PROMPT = (profile: RiskProfile) =>
 
 const MAX_PROPOSAL_STEPS = 5
 const MAX_CONTENT_URLS = 10
+// MINIMAL: blunt per-page/total char caps keep the synthesis prompt within
+// a 131k-token context (10 full pages can exceed 200k tokens). Upgrade path:
+// chunked map-reduce summarization per page instead of truncation.
+const MAX_CHARS_PER_PAGE = 12_000
+const MAX_CONTENT_CHARS = 100_000
 
 /** Stage 2: run the agentic proposal loop with Jev-gated search tools. */
 async function proposeQueries(deps: DeepDiveDeps, profile: RiskProfile): Promise<string[]> {
@@ -157,10 +162,15 @@ async function fetchContents(deps: RetrieveDeps, urls: string[]): Promise<string
     undefined as unknown as Parameters<typeof contents.execute>[1],
   )
   const blocks = (output as { content?: { type: string; text?: string }[] }).content ?? []
-  return blocks
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text)
-    .join('\n\n')
+  let total = 0
+  const texts: string[] = []
+  for (const block of blocks.filter((block) => block.type === 'text')) {
+    const text = (block.text ?? '').slice(0, MAX_CHARS_PER_PAGE)
+    if (total + text.length > MAX_CONTENT_CHARS) break
+    total += text.length
+    texts.push(text)
+  }
+  return texts.join('\n\n')
 }
 
 const SEVERITY_LEVELS = {

@@ -70,7 +70,6 @@
     "@types/bun": "latest",
     "@typesafe-ai/sdk": "^0.6.0",
     "ai": "^7.0.107",
-    "ai-sdk-ollama": "^4.3.0",
     "hono": "^4.13.8",
     "lint-staged": "^17.1.0",
     "typescript": "7.0.2",
@@ -83,5 +82,8 @@
     "*.{json,md}": [
       "biome format --write --no-errors-on-unmatched"
     ]
+  },
+  "dependencies": {
+    "@openrouter/ai-sdk-provider": "^3.1.0"
   }
 }

@@ -1,10 +1,13 @@
-import { createOllama } from 'ai-sdk-ollama'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 
+// Cloud-only model factory. Ollama was removed: a 30B local model on a
+// 32GB M2 Pro is too slow for sweep-scale generation (multi-minute LLM
+// calls, dropped sockets) and duplicated provider plumbing. If a local
+// provider returns, re-add it as an explicit RISK_PROVIDER branch here.
 export function getModel() {
-  const ollama = createOllama({
-    baseURL: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/api',
-  })
-  // MINIMAL: ollama-only factory; cloud provider fallback lands when the
-  // pipeline (Phase 3) needs it — add an env-selected provider branch there.
-  return ollama.chat(process.env.RISK_MODEL ?? 'muse-glimmer')
+  if (!process.env.OPENROUTER_API_KEY) {
+    throw new Error('OPENROUTER_API_KEY is required for the sweep model')
+  }
+  const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
+  return openrouter.chat(process.env.RISK_MODEL ?? 'meta/muse-glimmer-30b')
 }

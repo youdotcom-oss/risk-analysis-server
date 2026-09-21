@@ -30,5 +30,8 @@ export function missingKeyWarnings(env: Record<string, string | undefined> = pro
   if (!env.TYPESAFE_API_KEY) {
     warnings.push('TYPESAFE_API_KEY not set: Jev gates will fail on the first sweep (AuthenticationError).')
   }
+  if (!env.OPENROUTER_API_KEY) {
+    warnings.push('OPENROUTER_API_KEY not set: the sweep model cannot be constructed; manual sweeps will fail.')
+  }
   return warnings
 }
