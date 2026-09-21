@@ -28,12 +28,17 @@ export type AppDeps = {
     deps: Omit<McpFactoryDeps, 'sweepRunner'>,
   ) => (profile: ProfileRecord, taskId: string) => Promise<SweepOutcome>
   /** Per-process scheduler; enables live set_sweep_schedule registration. */
-  scheduler?: McpFactoryDeps['scheduler']
-  /** Omitted in tests; when set, the cron sweep engine runs. */
+  scheduler?: Pick<ProfileScheduler, 'apply' | 'clear' | 'applyGlobal'>
+  /**
+   * Global cron schedule applied to `scheduler` (all active profiles).
+   * Requires `scheduler`; without one this is ignored. Entry processes
+   * normally use the RISK_CRON_SCHEDULE env var instead.
+   */
   cronSchedule?: string
 }
 
 export function createApp(deps: AppDeps): Hono {
+  if (deps.cronSchedule && deps.scheduler) deps.scheduler.applyGlobal(deps.cronSchedule)
   const app = createMcpHonoApp({
     allowedHosts: process.env.RISK_ALLOWED_HOSTS?.split(','),
   })

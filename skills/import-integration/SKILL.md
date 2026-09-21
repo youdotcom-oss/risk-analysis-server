@@ -37,7 +37,11 @@ const app = createApp({
 
 3. Set `allowedHosts` on the app for your public hostname (DNS-rebinding
    protection rejects unknown `Host` headers).
-4. `RISK_CRON_SCHEDULE` on the host entry enables the sweep engine.
+4. Scheduled sweeps: pass `scheduler` (a `ProfileScheduler` wired with your
+   sweep implementation) to `createApp` and either set `cronSchedule` for a
+   global schedule or let users manage per-profile schedules via the
+   `set_sweep_schedule` tool. (`RISK_CRON_SCHEDULE` only applies when running
+   this repo's own entries directly.)
 
 ## Verify
 

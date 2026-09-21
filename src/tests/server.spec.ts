@@ -128,3 +128,36 @@ describe('createApp', () => {
     expect(Array.isArray(metadata.scopes_supported)).toBe(true)
   })
 })
+
+describe('createApp cronSchedule', () => {
+  test('applies cronSchedule to the scheduler when both are provided', () => {
+    const applied: string[] = []
+    const db = openDb(tempDbPath())
+    createApp({
+      db,
+      jwtSecret: 'secret',
+      sweepRunnerFactory: () => async () => ({ escalated: false }),
+      scheduler: {
+        apply: () => {},
+        clear: () => {},
+        applyGlobal: (schedule: string) => applied.push(schedule),
+      } as never,
+      cronSchedule: '0 9 * * 1',
+    })
+    expect(applied).toEqual(['0 9 * * 1'])
+    db.close()
+  })
+
+  test('cronSchedule without a scheduler does not throw', () => {
+    const db = openDb(tempDbPath())
+    expect(() =>
+      createApp({
+        db,
+        jwtSecret: 'secret',
+        sweepRunnerFactory: () => async () => ({ escalated: false }),
+        cronSchedule: '0 9 * * 1',
+      }),
+    ).not.toThrow()
+    db.close()
+  })
+})
