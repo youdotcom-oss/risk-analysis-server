@@ -32,12 +32,16 @@ function connect(deps: Partial<McpFactoryDeps> = {}) {
 }
 
 describe('buildMcpServer', () => {
-  test('exposes set_risk_profile and trigger_manual_sweep', async () => {
+  test('exposes the profile and sweep tools', async () => {
     const { client, serverTransport, clientTransport, server } = connect()
     await server.connect(serverTransport)
     await client.connect(clientTransport)
     const tools = await client.listTools()
-    expect(tools.tools.map((tool) => tool.name).sort()).toEqual(['set_risk_profile', 'trigger_manual_sweep'])
+    expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
+      'list_risk_profiles',
+      'set_risk_profile',
+      'trigger_manual_sweep',
+    ])
     await client.close()
     await server.close()
   })

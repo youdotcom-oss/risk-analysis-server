@@ -51,6 +51,22 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
   )
 
   server.registerTool(
+    'list_risk_profiles',
+    {
+      title: 'List Risk Profiles',
+      description:
+        'List your active risk profiles with their ids, so you can pick a profileId for trigger_manual_sweep.',
+      inputSchema: z.object({}),
+    },
+    async () => {
+      const profiles = getActiveProfiles(deps.db, deps.userId)
+      return {
+        content: [{ type: 'text', text: JSON.stringify(profiles) }],
+      }
+    },
+  )
+
+  server.registerTool(
     'trigger_manual_sweep',
     {
       title: 'Trigger Manual Sweep',
