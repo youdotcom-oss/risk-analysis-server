@@ -1,3 +1,19 @@
+import { mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+
+/**
+ * Stable per-user data dir for the default DB. Entrypoints must not use a
+ * cwd-relative path: GUI launchers (Claude Desktop etc.) run with an
+ * unwritable cwd like `/`, which fails SQLITE_CANTOPEN.
+ */
+export function defaultDbPath(env: Record<string, string | undefined> = process.env): string {
+  const dataHome = env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share')
+  const dir = join(dataHome, 'risk-analysis-server')
+  mkdirSync(dir, { recursive: true })
+  return join(dir, 'risk.sqlite')
+}
+
 /**
  * Startup configuration messaging. Names missing API keys and their
  * consequence so misconfiguration is visible at startup instead of

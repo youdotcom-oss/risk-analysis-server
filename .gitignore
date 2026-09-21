@@ -82,3 +82,10 @@ temp/
 .factory/
 .agents/
 plan.md
+
+# SQLite runtime data
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+tmp-defaultdbpath/

@@ -1,6 +1,7 @@
+#!/usr/bin/env bun
 import { serveStdio } from '@modelcontextprotocol/server/stdio'
 import { TypeSafeClient } from '@typesafe-ai/sdk'
-import { missingKeyWarnings } from './config.ts'
+import { defaultDbPath, missingKeyWarnings } from './config.ts'
 import { openDb } from './db.ts'
 import { buildMcpServer } from './mcp.ts'
 import { getModel } from './model.ts'
@@ -9,7 +10,7 @@ import { createJev } from './services/jev.ts'
 import { createYdcClient } from './services/you.ts'
 
 for (const warning of missingKeyWarnings()) console.warn(warning)
-const db = openDb(process.env.RISK_DB_PATH ?? 'risk.sqlite')
+const db = openDb(process.env.RISK_DB_PATH ?? defaultDbPath())
 
 // Lazy sweep deps: the You.com MCP client connects on first sweep, not at
 // startup — the server must start (and serve tools that need no network)

@@ -1,5 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { missingKeyWarnings } from '../config.ts'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { defaultDbPath, missingKeyWarnings } from '../config.ts'
 
 const savedEnv = { ...process.env }
 afterAll(() => {
@@ -8,6 +10,15 @@ afterAll(() => {
     delete process.env[key]
   }
   Object.assign(process.env, savedEnv)
+})
+
+describe('defaultDbPath', () => {
+  test('uses XDG_DATA_HOME and creates the directory', () => {
+    const root = join(import.meta.dir, 'tmp-defaultdbpath')
+    const path = defaultDbPath({ XDG_DATA_HOME: root })
+    expect(path).toBe(join(root, 'risk-analysis-server', 'risk.sqlite'))
+    expect(existsSync(join(root, 'risk-analysis-server'))).toBe(true)
+  })
 })
 
 describe('missingKeyWarnings', () => {
