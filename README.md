@@ -118,6 +118,7 @@ bunx skills add youdotcom-oss/risk-analysis-server
 or copy `skills/*/SKILL.md` into your agent's skills directory by hand:
 
 - **Run it as-is** → `skills/local-run`
+- **Run scheduled sweeps durably** (HTTP service + auth, fires with the chat client closed) → `skills/durable-local`
 - **Embed it in your Bun app** (your auth, your hosting) → `skills/import-integration`
 - **Fork and change behavior** (model, tools, report shape) → `skills/extend`
 - **Drive it from a chat client** (the poll protocol, report reading) → `skills/drive-sweeps`
