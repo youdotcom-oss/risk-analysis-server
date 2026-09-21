@@ -72,6 +72,61 @@ describe('buildMcpServer', () => {
     db.close()
   })
 
+  test('trigger_manual_sweep: start returns a task handle; poll serves status and result', async () => {
+    let releaseSweep: (outcome: { escalated: boolean; severity: string }) => void = () => {}
+    const gate = new Promise<{ escalated: boolean; severity: string }>((resolve) => {
+      releaseSweep = resolve
+    })
+    const { db, client, serverTransport, clientTransport, server } = connect({
+      sweepRunner: async () => await gate,
+    })
+    await server.connect(serverTransport)
+    await client.connect(clientTransport)
+    const saved = await client.callTool({
+      name: 'set_risk_profile',
+      arguments: { title: 'EU ports', locations: ['Hamburg Port'], triggers: ['strikes'] },
+    })
+    const profileId = (JSON.parse((saved.content as [{ text: string }])[0].text) as { id: string }).id
+
+    // Start: returns immediately with a task handle; the sweep is still working.
+    const started = await client.callTool({
+      name: 'trigger_manual_sweep',
+      arguments: { profileId },
+    })
+    const handle = JSON.parse((started.content as [{ type: string; text: string }])[0].text) as {
+      task_id: string
+      status: string
+    }
+    expect(handle.task_id).toMatch(/[0-9a-f-]{36}/)
+    expect(handle.status).toBe('working')
+
+    // Poll while working.
+    const working = await client.callTool({
+      name: 'trigger_manual_sweep',
+      arguments: { task_id: handle.task_id },
+    })
+    expect(JSON.parse((working.content as [{ text: string }])[0].text).status).toBe('working')
+
+    // Release the sweep; poll serves the completed result.
+    releaseSweep({ escalated: true, severity: 'critical' })
+    let finalText = ''
+    for (let i = 0; i < 50; i++) {
+      const polled = await client.callTool({
+        name: 'trigger_manual_sweep',
+        arguments: { task_id: handle.task_id },
+      })
+      finalText = (polled.content as [{ text: string }])[0].text
+      if (!JSON.parse(finalText).status || JSON.parse(finalText).status === 'completed') break
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    const outcome = JSON.parse(finalText) as { escalated: boolean; severity: string }
+    expect(outcome.escalated).toBe(true)
+    expect(outcome.severity).toBe('critical')
+    await client.close()
+    await server.close()
+    db.close()
+  })
+
   test('trigger_manual_sweep binds the report UI resource (MCP Apps _meta)', async () => {
     const { client, server, serverTransport, clientTransport } = connect()
     await server.connect(serverTransport)

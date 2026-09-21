@@ -2,7 +2,14 @@ import type { Database } from 'bun:sqlite'
 import { randomUUID } from 'node:crypto'
 import { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod/v4'
-import { getActiveProfiles, saveProfile } from './db.ts'
+import {
+  completeSweepTask,
+  createSweepTask,
+  failSweepTask,
+  getActiveProfiles,
+  getSweepTask,
+  saveProfile,
+} from './db.ts'
 import type { ProfileRecord, SweepOutcome } from './pipeline/sweep.ts'
 
 export type McpFactoryDeps = {
@@ -58,20 +65,7 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
         'List your active risk profiles with their ids, so you can pick a profileId for trigger_manual_sweep.',
       inputSchema: z.object({}),
     },
-    async (_args, ctx) => {
-      // TEMP probe: what client capabilities does the host actually declare?
-      // Drives the decision to wire task-augmented sweeps (SEP-2663).
-      const negotiated =
-        (
-          server as unknown as { server?: { getClientCapabilities?: () => unknown } }
-        ).server?.getClientCapabilities?.() ?? null
-      console.error(
-        '[caps]',
-        JSON.stringify({
-          negotiated: negotiated ?? null,
-          envelope: (ctx as { mcpReq?: { envelope?: unknown } }).mcpReq?.envelope ?? null,
-        }),
-      )
+    async () => {
       const profiles = getActiveProfiles(deps.db, deps.userId)
       return {
         content: [{ type: 'text', text: JSON.stringify(profiles) }],
@@ -83,14 +77,49 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
     'trigger_manual_sweep',
     {
       title: 'Trigger Manual Sweep',
-      description: 'Run the risk sweep pipeline now for one of your risk profiles.',
-      inputSchema: z.object({ profileId: z.string().min(1) }),
+      description:
+        'Start a risk sweep for one of your risk profiles, or poll a running sweep. Two entry points: ' +
+        'call with profileId to START — the tool returns immediately with a task_id and the sweep runs in ' +
+        'the background (typical duration 60-120s). Then POLL by calling again with task_id until status ' +
+        'is completed or failed; poll roughly every 20 seconds.',
+      inputSchema: z.object({
+        profileId: z.string().min(1).optional(),
+        task_id: z.string().min(1).optional(),
+      }),
       // MCP Apps binding (SEP-1865): after the sweep the host renders the
       // report resource in a sandboxed iframe. Text-only hosts fall back to
       // the JSON content below — the binding is additive.
       _meta: { ui: { resourceUri: REPORT_URI } },
     },
-    async ({ profileId }) => {
+    async ({ profileId, task_id }) => {
+      // Poll branch: status/result of an in-flight or finished sweep.
+      if (task_id) {
+        const task = getSweepTask(deps.db, task_id)
+        if (!task || task.user_id !== deps.userId) {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `No active sweep task ${task_id}.` }],
+          }
+        }
+        if (task.status === 'completed') {
+          return { content: [{ type: 'text', text: task.result_json ?? '{}' }] }
+        }
+        if (task.status === 'failed') {
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `Sweep failed: ${task.error_json ?? 'unknown error'}` }],
+          }
+        }
+        return { content: [{ type: 'text', text: JSON.stringify({ task_id, status: task.status }) }] }
+      }
+      // Start branch: durably record the task, launch the sweep in the
+      // background, and return the handle without blocking the caller.
+      if (!profileId) {
+        return {
+          isError: true,
+          content: [{ type: 'text', text: 'Provide profileId to start a sweep, or task_id to poll one.' }],
+        }
+      }
       const profile = getActiveProfiles(deps.db, deps.userId).find((p) => p.id === profileId)
       if (!profile) {
         return {
@@ -98,9 +127,28 @@ export function buildMcpServer(deps: McpFactoryDeps): McpServer {
           content: [{ type: 'text', text: `No active profile ${profileId} for this user.` }],
         }
       }
-      const outcome = await deps.sweepRunner(profile, randomUUID())
+      const taskId = randomUUID()
+      createSweepTask(deps.db, {
+        taskId,
+        userId: deps.userId,
+        profileId: profile.id,
+        ttlMs: deps.taskTtlMs ?? 30 * 60 * 1000,
+      })
+      void deps
+        .sweepRunner(profile, taskId)
+        .then((outcome) => completeSweepTask(deps.db, taskId, outcome))
+        .catch((error) => failSweepTask(deps.db, taskId, error))
       return {
-        content: [{ type: 'text', text: JSON.stringify(outcome) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              task_id: taskId,
+              status: 'working',
+              next: 'Poll this tool with task_id every ~20s until status is completed or failed.',
+            }),
+          },
+        ],
       }
     },
   )
