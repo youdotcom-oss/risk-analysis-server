@@ -128,7 +128,7 @@ flowchart TD
   S1 -->|"&lt; 0.50"| CLEAN["persist low-severity<br/>clean-sweep report · STOP"]
   S1 -->|"≥ 0.50"| S2["STAGE 2 · QUERY PROPOSAL<br/>Vercel AI SDK generateText<br/>qwen + you-search tool, ≤5 steps"]
   S2 --> G2["Jev noul gate inside the tool:<br/>query must be geospatially precise —<br/>rejected queries return re-propose hints"]
-  G2 --> S3["STAGE 3 · RETRIEVAL + SCORING<br/>code-invoked you-search per query<br/>knowledge:&quot;core&quot; → licensed facts<br/>(Fiscal.ai, BLS, EIA, FRED, AccuWeather)<br/>each with attribution + asOf"]
+  G2 --> S3["STAGE 3 · RETRIEVAL + SCORING<br/>code-invoked you-search per query<br/>knowledge=“core” → licensed facts<br/>(Fiscal.ai, BLS, EIA, FRED, AccuWeather)<br/>each with attribution + asOf"]
   S3 --> G3["Jev score 0–2 per result<br/>vs the profile's triggers<br/>+1 provenance boost for knowledge"]
   G3 --> R["topScored: 15 slots<br/>knowledge keeps reserved slots"]
   R --> S3b["STAGE 3b · PAGE FETCH<br/>you-contents ≤10 URLs<br/>≤12k chars/page · ≤100k total"]
