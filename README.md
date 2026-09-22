@@ -91,20 +91,57 @@ sqlite3 ~/.local/share/risk-analysis-server/risk.sqlite \
 
 (Quitting the client first avoids WAL writer contention.)
 
-## Architecture in one screen
+## Component topology
 
-```
-Claude/stdio ──┐
-               ├─► src/mcp.ts (shared factory) ──► pipeline/sweep.ts ──► Jev gates
-HTTP + cron ───┘        │                            └─► You.com search/contents
-   (Bearer JWT)         └─► bun:sqlite (profiles, sweep_tasks, reports)
+Two transports (a chat client's stdio session and a supervised HTTP
+service) share one tool factory and one SQLite database — that's what lets
+a report be written by a cron fire while you were away and read by a
+session opened later.
+
+```mermaid
+flowchart TB
+  subgraph clients[" "]
+    S["Claude / Cursor<br/>stdio · session-scoped cron"] 
+    H["HTTP entry + Bun.cron<br/>durable cron · Bearer JWT"]
+  end
+  S --> MCP
+  H --> MCP
+  MCP["src/mcp.ts<br/>one tool factory · five tools"]
+  MCP --> DB[("src/db.ts SQLite<br/>WAL · busy_timeout")]
+  MCP --> SW["src/pipeline/<br/>sweep.ts → deep-dive.ts → report.ts"]
+  SW --> Y["src/services/you.ts<br/>You.com MCP client"]
+  SW --> J["src/services/jev.ts<br/>Jev gates (TypeSafe AI)"]
+  SW --> M["src/model.ts<br/>qwen/qwen3.8-27b via OpenRouter<br/>driven by Vercel AI SDK"]
 ```
 
-- `src/mcp.ts` — tools + report factory (shared by both transports)
-- `src/pipeline/` — sweep orchestration, deep-dive stages, report formatting
-- `src/services/` — You.com MCP client, Jev (TypeSafe AI) judgments
-- `src/scheduler.ts` — Bun.cron scheduling (global + per-profile)
-- `src/db.ts` — SQLite schema + migrations
+## The sweep, stage by stage
+
+One sweep — manual or scheduled — runs four stages. Each pairs a data
+source (You.com) with a judgment gate (Jev, called like a programming
+primitive) or an LLM step (Qwen via OpenRouter through the Vercel AI SDK).
+All payloads are budget-capped; results persist in `sweep_tasks` and
+`risk_reports`.
+
+```mermaid
+flowchart TD
+  P["Profile"] --> S1["STAGE 1 · TRIAGE<br/>You.com search (highlights)<br/>Jev noul: threat probability"]
+  S1 -->|"&lt; 0.50"| CLEAN["persist low-severity<br/>clean-sweep report · STOP"]
+  S1 -->|"≥ 0.50"| S2["STAGE 2 · QUERY PROPOSAL<br/>Vercel AI SDK generateText<br/>qwen + you-search tool, ≤5 steps"]
+  S2 --> G2["Jev noul gate inside the tool:<br/>query must be geospatially precise —<br/>rejected queries return re-propose hints"]
+  G2 --> S3["STAGE 3 · RETRIEVAL + SCORING<br/>code-invoked you-search per query<br/>knowledge:&quot;core&quot; → licensed facts<br/>(Fiscal.ai, BLS, EIA, FRED, AccuWeather)<br/>each with attribution + asOf"]
+  S3 --> G3["Jev score 0–2 per result<br/>vs the profile's triggers<br/>+1 provenance boost for knowledge"]
+  G3 --> R["topScored: 15 slots<br/>knowledge keeps reserved slots"]
+  R --> S3b["STAGE 3b · PAGE FETCH<br/>you-contents ≤10 URLs<br/>≤12k chars/page · ≤100k total"]
+  S3b --> S4["STAGE 4 · SYNTHESIS<br/>Jev choice: low | medium | critical<br/>qwen: Markdown briefing<br/>citing source links"]
+  S4 --> REP["formatReport appends<br/>'## Licensed data'<br/>provider + as-of per fact"]
+  REP --> DB
+```
+
+Why this shape: judgment gates are cheap, typed, and run *inside* the
+loop — a bad query is rejected at the tool boundary instead of polluting
+retrieval; the expensive agentic loop (Stage 2) only runs when Gate 1
+says the news actually matters; and everything the LLM touches is
+payload-budgeted so a burst of news can't blow the context window.
 
 ## For developers
 
