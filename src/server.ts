@@ -1,4 +1,5 @@
 import type { Database } from 'bun:sqlite'
+import type { MCPClient } from '@ai-sdk/mcp'
 import { createMcpHonoApp } from '@modelcontextprotocol/hono'
 import { createMcpHandler } from '@modelcontextprotocol/server'
 import type { Context, Hono } from 'hono'
@@ -107,7 +108,7 @@ function getServerApp(): Hono {
         const sweepDeps = buildSweepDeps({
           db: deps.db,
           userId: deps.userId,
-          ydcClient: await sharedYdcClient,
+          ydcClient: await ydcClient(),
           jev: createJev(),
           model: getModel(),
         })
@@ -129,8 +130,14 @@ let cachedApp: Hono | undefined
 let entryScheduler: ProfileScheduler | undefined
 
 // One shared You.com MCP client per process (scheduler sweeps + requests):
-// a per-sweep client leaked connections. Connected lazily on first use.
-const sharedYdcClient = createYdcClient()
+// a per-sweep client leaked connections. Created lazily on first use — a
+// module-level hot promise would connect at import time, which breaks
+// keyless startup (e.g. the spawned-stdio e2e) with a 401.
+let sharedYdcClient: Promise<MCPClient> | undefined
+function ydcClient(): Promise<MCPClient> {
+  sharedYdcClient ??= createYdcClient()
+  return sharedYdcClient
+}
 
 if (import.meta.main) {
   const entryDb = openDb(process.env.RISK_DB_PATH ?? defaultDbPath())
@@ -141,7 +148,7 @@ if (import.meta.main) {
           db: entryDb,
           // tenant-scoped: source_utility deltas land under the profile's owner
           userId: profile.userId,
-          ydcClient: await sharedYdcClient,
+          ydcClient: await ydcClient(),
           jev: createJev(),
           model: getModel(),
         }),
