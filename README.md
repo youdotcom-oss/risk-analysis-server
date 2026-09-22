@@ -60,12 +60,6 @@ Federal Reserve).
 | `get_risk_report` | Fetch the latest (or by-id) briefing as GFM Markdown, plus a `knowledge` array carrying each licensed fact's `attribution` and `asOf`. |
 | `set_sweep_schedule` | Attach a cron expression to a profile (or omit to clear). |
 
-The sweep pipeline: Stage 1 surface-search triage (Jev `noul`) → Stage 2
-agentic query proposal with a relevance gate inside the tool → Stage 3
-retrieval + per-result scoring → Stage 4 synthesis into a Markdown briefing.
-All payloads are budget-capped; results are stored durably in
-`sweep_tasks`/`risk_reports`.
-
 ## Scheduling
 
 - **In conversation**: `set_sweep_schedule` with a cron expression
