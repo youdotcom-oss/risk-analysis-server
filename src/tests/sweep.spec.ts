@@ -78,6 +78,7 @@ describe('runSweep', () => {
     })
     const outcome: SweepOutcome = await runSweep(deps, profile)
     expect(outcome.escalated).toBe(false)
+    expect(outcome.threatProbability).toBe(0.3)
     expect(triageCalls).toHaveLength(1)
     expect(deepDiveCalls).toHaveLength(0)
     expect(outcome.severity).toBe('low')
@@ -93,6 +94,20 @@ describe('runSweep', () => {
     expect(report?.content_html).toContain('## Signals reviewed')
   })
 
+  test('threshold is configurable: 0.7 holds out a 0.6 threat that 0.5 escalates', async () => {
+    const escalatedAt = makeDeps({ threatProbability: 0.6 })
+    const heldOutAt = makeDeps({ threatProbability: 0.6 })
+
+    const escalated = await runSweep({ ...escalatedAt.deps, triageThreshold: 0.5 }, profile)
+    const held = await runSweep({ ...heldOutAt.deps, triageThreshold: 0.7 }, profile)
+
+    expect(escalated.escalated).toBe(true)
+    expect(held.escalated).toBe(false)
+    expect(held.severity).toBe('low')
+    // the raw gate value rides out either way — the threshold decision stays auditable
+    expect(held.threatProbability).toBe(0.6)
+  })
+
   test('above threshold: escalates, persists report, and returns severity', async () => {
     const { deps, db, deepDiveCalls } = makeDeps({
       threatProbability: 0.8,
@@ -106,6 +121,7 @@ describe('runSweep', () => {
     const outcome = await runSweep(deps, profile)
     expect(outcome.escalated).toBe(true)
     expect(outcome.severity).toBe('critical')
+    expect(outcome.threatProbability).toBe(0.8)
     expect(deepDiveCalls).toHaveLength(1)
     const row = db
       .query<{ severity: string; content_html: string }, []>('SELECT severity, content_html FROM risk_reports')
@@ -138,6 +154,7 @@ describe('sweepAllProfiles', () => {
           escalated: true,
           severity: 'medium',
           reportId: expect.any(String),
+          threatProbability: 0.8,
           knowledgeHits: 0,
           usage: {
             jevInputTokens: 0,

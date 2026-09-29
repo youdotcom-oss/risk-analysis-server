@@ -14,6 +14,24 @@ export function defaultDbPath(env: Record<string, string | undefined> = process.
   return join(dir, 'risk.sqlite')
 }
 
+export const DEFAULT_TRIAGE_THRESHOLD = 0.5
+
+/**
+ * Gate 1 escalation cutoff: escalate the sweep when the triage noul reaches
+ * this value. Invalid values fail loudly at startup — a silently-different
+ * threshold would invalidate every escalation decision made under it.
+ */
+export function resolveTriageThreshold(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.RISK_TRIAGE_THRESHOLD
+  if (raw === undefined) return DEFAULT_TRIAGE_THRESHOLD
+  const value = Number(raw)
+  // Number('') is 0 — an empty value must fail loudly, not mean "never escalate".
+  if (raw.trim() === '' || Number.isNaN(value) || value < 0 || value > 1) {
+    throw new Error(`RISK_TRIAGE_THRESHOLD must be a number in [0, 1], got: "${raw}"`)
+  }
+  return value
+}
+
 /**
  * Startup configuration messaging. Names missing API keys and their
  * consequence so misconfiguration is visible at startup instead of

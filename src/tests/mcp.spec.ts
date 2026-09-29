@@ -24,7 +24,7 @@ function connect(deps: Partial<McpFactoryDeps> = {}) {
   const server = buildMcpServer({
     db,
     userId: 'local-user',
-    sweepRunner: async () => ({ escalated: false, usage: createSweepUsage() }),
+    sweepRunner: async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
     ...deps,
   })
   const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair()
@@ -80,7 +80,7 @@ describe('buildMcpServer', () => {
     const server = buildMcpServer({
       db,
       userId: 'local-user',
-      sweepRunner: async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweepRunner: async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
       scheduler: {
         apply: () => {},
         clear: () => {},
@@ -115,13 +115,17 @@ describe('buildMcpServer', () => {
     let releaseSweep: (outcome: {
       escalated: boolean
       severity: string
+      threatProbability: number
       usage: ReturnType<typeof createSweepUsage>
     }) => void = () => {}
-    const gate = new Promise<{ escalated: boolean; severity: string; usage: ReturnType<typeof createSweepUsage> }>(
-      (resolve) => {
-        releaseSweep = resolve
-      },
-    )
+    const gate = new Promise<{
+      escalated: boolean
+      severity: string
+      threatProbability: number
+      usage: ReturnType<typeof createSweepUsage>
+    }>((resolve) => {
+      releaseSweep = resolve
+    })
     const { db, client, serverTransport, clientTransport, server } = connect({
       sweepRunner: async () => await gate,
     })
@@ -161,7 +165,7 @@ describe('buildMcpServer', () => {
     expect(JSON.parse((working.content as unknown as [{ text: string }])[0].text).status).toBe('working')
 
     // Release the sweep; poll serves the completed result.
-    releaseSweep({ escalated: true, severity: 'critical', usage: createSweepUsage() })
+    releaseSweep({ escalated: true, severity: 'critical', threatProbability: 0.9, usage: createSweepUsage() })
     let finalText = ''
     for (let i = 0; i < 50; i++) {
       const polled = await client.callTool({
@@ -195,7 +199,7 @@ describe('buildMcpServer', () => {
       sweepRunner: async () => {
         runs++
         await gate
-        return { escalated: false, usage: createSweepUsage() }
+        return { escalated: false, threatProbability: 0, usage: createSweepUsage() }
       },
     })
     await server.connect(serverTransport)
@@ -232,7 +236,7 @@ describe('buildMcpServer', () => {
     const server = buildMcpServer({
       db,
       userId: 'local-user',
-      sweepRunner: async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweepRunner: async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
       scheduler: {
         scope: 'durable',
         apply: (profileId: string, schedule: string | null) => registered.push(`${profileId}:${schedule}`),
@@ -348,7 +352,7 @@ describe('set_sweep_schedule without a wired scheduler', () => {
     const server = buildMcpServer({
       db,
       userId: 'local-user',
-      sweepRunner: async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweepRunner: async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
     })
     const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair()
     const client = new Client({ name: 'test-client', version: '0.0.0' })
@@ -381,7 +385,7 @@ describe('set_risk_profile with an existing id', () => {
     const server = buildMcpServer({
       db,
       userId: 'local-user',
-      sweepRunner: async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweepRunner: async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
     })
     const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair()
     const client = new Client({ name: 'test-client', version: '0.0.0' })

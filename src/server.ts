@@ -4,7 +4,7 @@ import { createMcpHonoApp } from '@modelcontextprotocol/hono'
 import { createMcpHandler } from '@modelcontextprotocol/server'
 import type { Context, Hono } from 'hono'
 import { jwtVerify } from 'jose'
-import { defaultDbPath, missingKeyWarnings } from './config.ts'
+import { defaultDbPath, missingKeyWarnings, resolveTriageThreshold } from './config.ts'
 import { ensureUser, openDb } from './db.ts'
 import { buildMcpServer, type McpFactoryDeps } from './mcp.ts'
 import { getModel } from './model.ts'
@@ -111,6 +111,7 @@ function getServerApp(): Hono {
           ydcClient: await ydcClient(),
           jev: createJev(),
           model: getModel(),
+          triageThreshold: resolveTriageThreshold(),
         })
         return runSweepForTask(deps.db, sweepDeps, profile, taskId)
       }
@@ -151,6 +152,7 @@ if (import.meta.main) {
           ydcClient: await ydcClient(),
           jev: createJev(),
           model: getModel(),
+          triageThreshold: resolveTriageThreshold(),
         }),
         profile,
       ),

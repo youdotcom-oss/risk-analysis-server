@@ -20,6 +20,9 @@ export type SweepOutcome = {
   escalated: boolean
   severity?: string
   reportId?: string
+  /** Raw Gate 1 noul: P(material threat) before thresholding. Logged so the
+   *  escalation threshold is tunable from data, not guesswork. */
+  threatProbability: number
   /** Licensed knowledge facts (url-less) that reached synthesis. */
   knowledgeHits?: number
   /** Provider footprint of this run: You.com calls + Jev tokens. */
@@ -28,6 +31,8 @@ export type SweepOutcome = {
 
 export type SweepDeps = {
   db: Database
+  /** Gate 1 escalation cutoff on the triage noul. Default 0.5. */
+  triageThreshold?: number
   fetchHighlights: (profile: ProfileRecord, usage: SweepUsage) => Promise<string[]>
   triage: (profile: ProfileRecord, highlights: string[], usage: SweepUsage) => Promise<number>
   deepDive: (
@@ -41,7 +46,7 @@ export type SweepDeps = {
   }>
 }
 
-const TRIAGE_THRESHOLD = 0.5
+const DEFAULT_TRIAGE_THRESHOLD = 0.5
 
 /** Stage 1 surface-sweep query: the deterministic template from the deep-dive module. */
 async function fetchHighlights(
@@ -75,6 +80,8 @@ async function fetchHighlights(
 
 export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client' | 'profile' | 'usage'> & {
   db: Database
+  /** Gate 1 escalation cutoff (RISK_TRIAGE_THRESHOLD). Default 0.5. */
+  triageThreshold?: number
   /** The You.com MCP client, or a promise for it (lazy connect keeps startup
    *  independent of the upstream server's availability). */
   ydcClient: Pick<MCPClient, 'tools'> | Promise<Pick<MCPClient, 'tools'>>
@@ -85,6 +92,7 @@ export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
   const resolveClient = async () => await args.ydcClient
   return {
     db: args.db,
+    triageThreshold: args.triageThreshold,
     // Each run owns its ledger: runSweep mints one and hands it down, so
     // concurrent sweeps sharing these deps never mix usage attribution.
     fetchHighlights: async (profile, usage) => fetchHighlights(await resolveClient(), profile, usage),
@@ -112,10 +120,11 @@ export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
  * action; sometimes it documents inaction.
  */
 export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise<SweepOutcome> {
+  const threshold = deps.triageThreshold ?? DEFAULT_TRIAGE_THRESHOLD
   const usage = createSweepUsage()
   const highlights = await deps.fetchHighlights(profile, usage)
   const threat = await deps.triage(profile, highlights, usage)
-  if (threat < TRIAGE_THRESHOLD) {
+  if (threat < threshold) {
     // A report isn't always for action — sometimes it documents inaction:
     // persist a low-severity clean-sweep record so history stays complete
     // and clients have something to read. Deterministic, no deep dive.
@@ -139,7 +148,7 @@ export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise
           '## No action required',
           '',
           `Triage scored today's news landscape at ${threat.toFixed(2)} ` +
-            `(below the ${TRIAGE_THRESHOLD} escalation threshold) against this profile's ` +
+            `(below the ${threshold.toFixed(2)} escalation threshold) against this profile's ` +
             'policy triggers. No briefing was generated.',
           '',
           '## Signals reviewed',
@@ -149,7 +158,7 @@ export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise
         ].join('\n'),
         now: Date.now(),
       })
-    return { escalated: false, severity: 'low', reportId, knowledgeHits: 0, usage }
+    return { escalated: false, severity: 'low', reportId, knowledgeHits: 0, threatProbability: threat, usage }
   }
   const report = await deps.deepDive(profile, usage)
   const reportId = randomUUID()
@@ -172,6 +181,7 @@ export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise
     severity: report.severity,
     reportId,
     knowledgeHits: report.knowledgeHits,
+    threatProbability: threat,
     usage,
   }
 }

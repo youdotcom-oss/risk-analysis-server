@@ -34,7 +34,7 @@ function makeApp() {
   const app = createApp({
     db,
     jwtSecret: 'test-secret',
-    sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
+    sweepRunnerFactory: () => async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
   })
   return { db, app }
 }
@@ -107,7 +107,7 @@ describe('createApp', () => {
         verifyCalls.push(req.headers.get('authorization') ?? '')
         return req.headers.get('authorization') === 'Bearer custom' ? { sub: 'custom-user' } : null
       },
-      sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweepRunnerFactory: () => async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
     })
     const res = await mcpRequest(app, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, 'Bearer custom')
     expect(res.status).toBe(200)
@@ -137,7 +137,7 @@ describe('createApp cronSchedule', () => {
     createApp({
       db,
       jwtSecret: 'secret',
-      sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweepRunnerFactory: () => async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
       scheduler: {
         apply: () => {},
         clear: () => {},
@@ -155,7 +155,7 @@ describe('createApp cronSchedule', () => {
       createApp({
         db,
         jwtSecret: 'secret',
-        sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
+        sweepRunnerFactory: () => async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
         cronSchedule: '0 9 * * 1',
       }),
     ).not.toThrow()

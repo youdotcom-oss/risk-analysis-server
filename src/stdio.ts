@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { serveStdio } from '@modelcontextprotocol/server/stdio'
-import { defaultDbPath, missingKeyWarnings } from './config.ts'
+import { defaultDbPath, missingKeyWarnings, resolveTriageThreshold } from './config.ts'
 import { openDb } from './db.ts'
 import { buildMcpServer } from './mcp.ts'
 import { getModel } from './model.ts'
@@ -21,6 +21,7 @@ function sweepDeps(): SweepDeps {
   cachedSweepDeps ??= buildSweepDeps({
     db,
     userId: 'local-user',
+    triageThreshold: resolveTriageThreshold(),
     ydcClient: createYdcClient(),
     jev: createJev(),
     model: getModel(),

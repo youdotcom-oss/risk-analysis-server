@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { defaultDbPath, missingKeyWarnings } from '../config.ts'
+import { defaultDbPath, missingKeyWarnings, resolveTriageThreshold } from '../config.ts'
 
 const savedEnv = { ...process.env }
 afterAll(() => {
@@ -53,6 +53,22 @@ describe('missingKeyWarnings', () => {
     for (const warning of warnings) {
       expect(warning).not.toContain('sentinel-ydc-value')
       expect(warning).not.toContain('sentinel-typesafe-value')
+    }
+  })
+})
+
+describe('resolveTriageThreshold', () => {
+  test('defaults to 0.5 when unset', () => {
+    expect(resolveTriageThreshold({})).toBe(0.5)
+  })
+
+  test('parses a valid override', () => {
+    expect(resolveTriageThreshold({ RISK_TRIAGE_THRESHOLD: '0.7' })).toBe(0.7)
+  })
+
+  test('rejects invalid values loudly instead of silently defaulting', () => {
+    for (const bad of ['abc', '1.5', '-1', '']) {
+      expect(() => resolveTriageThreshold({ RISK_TRIAGE_THRESHOLD: bad })).toThrow(/RISK_TRIAGE_THRESHOLD/)
     }
   })
 })

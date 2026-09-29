@@ -35,7 +35,7 @@ describe('e2e: real client through the http entry (in-process)', () => {
     const app = createApp({
       db,
       jwtSecret: 'e2e-secret',
-      sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweepRunnerFactory: () => async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
     })
 
     const transport = new StreamableHTTPClientTransport(new URL('http://test.local/mcp'), {
@@ -88,7 +88,7 @@ describe('e2e: real client through the http entry (in-process)', () => {
     const app = createApp({
       db,
       jwtSecret: 'e2e-secret',
-      sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweepRunnerFactory: () => async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
     })
     const res = await app.fetch(
       new Request('http://test.local/mcp', {

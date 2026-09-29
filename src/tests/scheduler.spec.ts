@@ -43,7 +43,7 @@ describe('ProfileScheduler', () => {
     const registrar = new FakeRegistrar()
     const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => registrar.register(expr, fn),
-      sweep: async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweep: async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
     })
     scheduler.apply('p1', '*/30 * * * *')
     expect(registrar.jobs.has('*/30 * * * *')).toBe(true)
@@ -58,7 +58,7 @@ describe('ProfileScheduler', () => {
     const registrar = new FakeRegistrar()
     const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => registrar.register(expr, fn),
-      sweep: async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweep: async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
     })
     expect(() => scheduler.apply('p1', 'whenever')).toThrow('Invalid cron expression')
     expect(registrar.jobs.size).toBe(0)
@@ -77,7 +77,7 @@ describe('ProfileScheduler', () => {
       },
       sweep: async () => {
         sweeps++
-        return { escalated: false, usage: createSweepUsage() }
+        return { escalated: false, threatProbability: 0, usage: createSweepUsage() }
       },
     })
     scheduler.apply('p1', '* * * * *')
@@ -98,7 +98,7 @@ describe('ProfileScheduler', () => {
     const registrar = new FakeRegistrar()
     const scheduler = new ProfileScheduler(db, {
       register: (expr, fn) => registrar.register(expr, fn),
-      sweep: async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweep: async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
     })
     scheduler.applyStored()
     expect(registrar.jobs.has('0 9 * * *')).toBe(true)
@@ -120,7 +120,7 @@ describe('ProfileScheduler.applyStored', () => {
         if (expr === 'a b c d e') throw new Error('Invalid cron expression: value out of range for field')
         return registrar.register(expr, fn)
       },
-      sweep: async () => ({ escalated: false, usage: createSweepUsage() }),
+      sweep: async () => ({ escalated: false, threatProbability: 0, usage: createSweepUsage() }),
     })
     expect(() => scheduler.applyStored()).not.toThrow()
     expect(registrar.jobs.has('0 9 * * 1')).toBe(true) // good profile still applied
@@ -161,7 +161,7 @@ describe('task TTL semantics', () => {
         jobs.set(expr, fn)
         return { stop: () => jobs.delete(expr) }
       },
-      sweep: async () => ({ escalated: true, severity: 'medium', usage: createSweepUsage() }),
+      sweep: async () => ({ escalated: true, severity: 'medium', threatProbability: 0.8, usage: createSweepUsage() }),
       ttlMs: 1,
     })
     scheduler.apply('p1', '* * * * *')
@@ -190,7 +190,7 @@ describe('ProfileScheduler snapshot freshness', () => {
       },
       sweep: async (profile) => {
         seen.push(profile.title)
-        return { escalated: false, usage: createSweepUsage() }
+        return { escalated: false, threatProbability: 0, usage: createSweepUsage() }
       },
     })
     scheduler.apply('p1', '* * * * *')
