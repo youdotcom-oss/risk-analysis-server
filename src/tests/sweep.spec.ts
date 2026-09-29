@@ -8,6 +8,7 @@ import { openDb } from '../db.ts'
 import { buildSweepDeps, type ProfileRecord, runSweep, type SweepOutcome, sweepAllProfiles } from '../pipeline/sweep.ts'
 import type { SystemOneCaller } from '../services/jev.ts'
 import { createJev } from '../services/jev.ts'
+import { createSweepUsage } from '../services/usage.ts'
 
 const dirs: string[] = []
 afterAll(() => {
@@ -161,6 +162,9 @@ describe('sweepAllProfiles', () => {
             jevOutputTokens: 0,
             searchCalls: 0,
             contentsCalls: 0,
+            judgeInputTokens: 0,
+            judgeOutputTokens: 0,
+            judgeMalformed: 0,
           },
         },
       },
@@ -382,5 +386,49 @@ describe('buildSweepDeps', () => {
     expect(outcome.usage!.jevInputTokens).toBe(160)
     expect(outcome.usage!.jevOutputTokens).toBe(12)
     db.close()
+  })
+
+  test('RISK_JUDGE=qwen swaps only the judge — same deps, Qwen answering', async () => {
+    const db = openDb(tempDbPath())
+    const prev = process.env.RISK_JUDGE
+    process.env.RISK_JUDGE = 'qwen'
+    try {
+      // Qwen-as-judge answers triage in strict JSON
+      const model = new MockLanguageModelV4({
+        doGenerate: [mockResult([{ type: 'text', text: '{"threat": 0.83}' }], 'stop' as never)],
+      })
+      const deps = buildSweepDeps({
+        db,
+        userId: 'local-user',
+        ydcClient: { tools: () => Promise.resolve({}) } as never,
+        jev: createJev({
+          systemOne: () => {
+            throw new Error('Jev must not be called when RISK_JUDGE=qwen')
+          },
+        } as never),
+        model: model as never,
+      } as never)
+
+      const usage = createSweepUsage()
+      const threat = await deps.triage(
+        {
+          id: 'p1',
+          userId: 'local-user',
+          title: 'EU port operations',
+          locations: ['Hamburg Port'],
+          triggers: ['strikes'],
+        },
+        ['Hamburg port strike enters second week'],
+        usage,
+      )
+
+      expect(threat).toBe(0.83)
+      expect(usage.judgeInputTokens).toBe(1)
+      expect(usage.jevInputTokens).toBe(0)
+      db.close()
+    } finally {
+      if (prev === undefined) delete process.env.RISK_JUDGE
+      else process.env.RISK_JUDGE = prev
+    }
   })
 })

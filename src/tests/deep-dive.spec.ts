@@ -9,6 +9,7 @@ import { collectQueries, deepDive, fallbackQuery, retrieveAndScore, topScored } 
 import type { ProfileRecord } from '../pipeline/sweep.ts'
 import type { SystemOneCaller } from '../services/jev.ts'
 import { createJev } from '../services/jev.ts'
+import { createJevJudge } from '../services/judge.ts'
 import { createSweepUsage } from '../services/usage.ts'
 
 const dirs: string[] = []
@@ -195,7 +196,7 @@ describe('retrieveAndScore', () => {
     const db = openDb(tempDbPath())
     const deps = {
       client: { tools: () => Promise.resolve(tools) } as never,
-      jev: {
+      judge: createJevJudge({
         systemOne(request: unknown) {
           profilesSeen.push((request as { state?: { profile?: unknown } }).state?.profile)
           return Promise.resolve({
@@ -207,7 +208,7 @@ describe('retrieveAndScore', () => {
             ),
           }) as never
         },
-      } as unknown as SystemOneCaller,
+      } as unknown as SystemOneCaller),
       db,
       userId: 'local-user',
       usage: createSweepUsage(),
@@ -275,7 +276,7 @@ describe('retrieveAndScore', () => {
     const questionsSeen: string[] = []
     const deps = {
       client: { tools: () => Promise.resolve(tools) } as never,
-      jev: {
+      judge: createJevJudge({
         systemOne(request: unknown) {
           const questions = (request as { questions: Record<string, unknown> }).questions
           for (const q of Object.values(questions)) questionsSeen.push(JSON.stringify(q))
@@ -285,7 +286,7 @@ describe('retrieveAndScore', () => {
             ),
           }) as never
         },
-      } as unknown as SystemOneCaller,
+      } as unknown as SystemOneCaller),
       db,
       userId: 'local-user',
       profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
@@ -320,6 +321,7 @@ describe('retrieveAndScore', () => {
       profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
       usage: createSweepUsage(),
       maxQueries: 8,
+      judge: createJevJudge(jevStub([2.5, 0.5])),
     }
     const scored = await retrieveAndScore(deps, ['Hamburg Port strike', 'Duisburg rail blockade'])
 
@@ -454,7 +456,7 @@ describe('deepDive', () => {
       {
         model: model as never,
         client: { tools: () => Promise.resolve(tools) } as never,
-        jev: createJev(jevForDeepDive(2.5)),
+        judge: createJevJudge(createJev(jevForDeepDive(2.5))),
         db,
         usage: createSweepUsage(),
         maxQueries: 8,
@@ -569,7 +571,7 @@ describe('deepDive', () => {
       {
         model: model as never,
         client: { tools: () => Promise.resolve(tools) } as never,
-        jev: createJev(jevForDeepDive(2.5)),
+        judge: createJevJudge(createJev(jevForDeepDive(2.5))),
         db,
         usage: createSweepUsage(),
         maxQueries: 8,
@@ -636,7 +638,7 @@ describe('deepDive', () => {
       {
         model: model as never,
         client: { tools: () => Promise.resolve(wrappedTools) } as never,
-        jev: createJev(jevForDeepDive(1)),
+        judge: createJevJudge(createJev(jevForDeepDive(1))),
         db,
         usage: createSweepUsage(),
         maxQueries: 8,

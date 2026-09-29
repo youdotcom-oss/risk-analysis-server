@@ -1,9 +1,12 @@
 import type { Database } from 'bun:sqlite'
 import { randomUUID } from 'node:crypto'
 import type { MCPClient } from '@ai-sdk/mcp'
+import { resolveJudge } from '../config.ts'
 import { completeSweepTask, failSweepTask } from '../db.ts'
-import { triageThreat } from '../services/jev.ts'
-import { buildSweepUsage, createSweepUsage, type SweepUsage } from '../services/usage.ts'
+import type { SystemOneCaller } from '../services/jev.ts'
+import { createJevJudge, type Judge } from '../services/judge.ts'
+import { createQwenJudge } from '../services/qwen-judge.ts'
+import { createSweepUsage, type SweepUsage } from '../services/usage.ts'
 import { parseSearchResults } from '../services/you.ts'
 import type { DeepDiveDeps } from './deep-dive.ts'
 import { deepDive, fallbackQuery } from './deep-dive.ts'
@@ -80,12 +83,16 @@ async function fetchHighlights(
     .filter((highlight) => highlight !== '')
 }
 
-export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client' | 'profile' | 'usage'> & {
+export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client' | 'profile' | 'usage' | 'jev' | 'judge'> & {
   db: Database
   /** Gate 1 escalation cutoff (RISK_TRIAGE_THRESHOLD). Default 0.5. */
   triageThreshold?: number
   /** Max model-proposed queries executed after Gate 2 ranking (RISK_MAX_QUERIES). Default 8. */
   maxQueries?: number
+  /** Judgment engine override for the ablation (RISK_JUDGE). Default: jev via `jev`. */
+  judge?: Judge
+  /** The Jev caller backing the default judge (ignored when `judge` is set). */
+  jev: SystemOneCaller
   /** The You.com MCP client, or a promise for it (lazy connect keeps startup
    *  independent of the upstream server's availability). */
   ydcClient: Pick<MCPClient, 'tools'> | Promise<Pick<MCPClient, 'tools'>>
@@ -94,6 +101,9 @@ export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client' | 'profile' | 'usag
 /** Compose the real SweepDeps: Stage 1 highlight triage + the full deep dive. */
 export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
   const resolveClient = async () => await args.ydcClient
+  // Judgment engine: explicit override, else RISK_JUDGE, else Jev. The same
+  // Judge interface means the ablation swaps only the engine.
+  const judge = args.judge ?? (resolveJudge() === 'qwen' ? createQwenJudge(args.model) : createJevJudge(args.jev))
   return {
     db: args.db,
     triageThreshold: args.triageThreshold,
@@ -101,13 +111,13 @@ export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
     // Each run owns its ledger: runSweep mints one and hands it down, so
     // concurrent sweeps sharing these deps never mix usage attribution.
     fetchHighlights: async (profile, usage) => fetchHighlights(await resolveClient(), profile, usage),
-    triage: (profile, highlights, usage) => triageThreat(buildSweepUsage(args.jev, usage), profile, highlights),
+    triage: (profile, highlights, usage) => judge.triage(profile, highlights, usage),
     deepDive: async (profile, usage) =>
       await deepDive(
         {
           model: args.model,
           client: await resolveClient(),
-          jev: buildSweepUsage(args.jev, usage),
+          judge,
           db: args.db,
           userId: args.userId,
           profile,

@@ -50,6 +50,20 @@ export function resolveMaxQueries(env: Record<string, string | undefined> = proc
   return value
 }
 
+export type JudgeName = 'jev' | 'qwen'
+
+/**
+ * Which judgment engine answers the four gate decisions. 'qwen' is the
+ * ablation judge: the same four decisions made by the sweep model in strict
+ * JSON, so the pipeline is held constant and only the judge changes.
+ */
+export function resolveJudge(env: Record<string, string | undefined> = process.env): JudgeName {
+  const raw = env.RISK_JUDGE
+  if (raw === undefined) return 'jev'
+  if (raw === 'jev' || raw === 'qwen') return raw
+  throw new Error(`RISK_JUDGE must be 'jev' or 'qwen', got: "${raw}"`)
+}
+
 /**
  * Startup configuration messaging. Names missing API keys and their
  * consequence so misconfiguration is visible at startup instead of

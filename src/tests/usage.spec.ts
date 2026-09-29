@@ -5,6 +5,7 @@ import { openDb } from '../db.ts'
 import { deepDive } from '../pipeline/deep-dive.ts'
 import type { SystemOneCaller } from '../services/jev.ts'
 import { createJev } from '../services/jev.ts'
+import { createJevJudge } from '../services/judge.ts'
 import { buildSweepUsage, createSweepUsage, trackJevUsage } from '../services/usage.ts'
 import { createProposalTools } from '../services/you.ts'
 
@@ -15,7 +16,15 @@ describe('buildSweepUsage', () => {
     const usage = createSweepUsage()
     const tracked = buildSweepUsage(createJev(callerWithUsage([])), usage)
     expect(typeof tracked.systemOne).toBe('function')
-    expect(usage).toEqual({ jevInputTokens: 0, jevOutputTokens: 0, searchCalls: 0, contentsCalls: 0 })
+    expect(usage).toEqual({
+      jevInputTokens: 0,
+      jevOutputTokens: 0,
+      searchCalls: 0,
+      contentsCalls: 0,
+      judgeInputTokens: 0,
+      judgeOutputTokens: 0,
+      judgeMalformed: 0,
+    })
   })
 })
 
@@ -106,7 +115,7 @@ function makeDeepDiveDeps(usage: ReturnType<typeof createSweepUsage>) {
       return Promise.resolve({ answers, usage: { input_tokens: 10, output_tokens: 2 } }) as never
     },
   } as unknown as SystemOneCaller
-  const jev = buildSweepUsage(createJev(rawJev), usage)
+  const judge = createJevJudge(createJev(rawJev))
   const usage_meta = {
     inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
     outputTokens: { total: 1, text: 1, reasoning: 0 },
@@ -133,7 +142,7 @@ function makeDeepDiveDeps(usage: ReturnType<typeof createSweepUsage>) {
   })
   const deps = {
     client: { tools: () => Promise.resolve(tools) } as never,
-    jev,
+    judge,
     db: openDb(':memory:'),
     userId: 'local-user',
     model: model as never,
@@ -148,7 +157,7 @@ function makeDeepDiveDeps(usage: ReturnType<typeof createSweepUsage>) {
   } as never
   return {
     deps,
-    jev,
+    judge,
     get rawSearchCalls() {
       return rawSearchCalls
     },
@@ -208,6 +217,9 @@ describe('createSweepUsage', () => {
       jevOutputTokens: 0,
       searchCalls: 0,
       contentsCalls: 0,
+      judgeInputTokens: 0,
+      judgeOutputTokens: 0,
+      judgeMalformed: 0,
     })
   })
 })

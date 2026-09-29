@@ -1,4 +1,4 @@
-import { noul, score, TypeSafeClient } from '@typesafe-ai/sdk'
+import { choice, noul, score, TypeSafeClient } from '@typesafe-ai/sdk'
 
 export type SystemOneCaller = Pick<TypeSafeClient, 'systemOne'>
 export { TypeSafeClient }
@@ -136,4 +136,26 @@ export async function scoreResults(
       score: isKnowledge ? Math.min(base + PROVENANCE_BOOST, RELEVANCY_RUBRIC.length - 1) : base,
     }
   })
+}
+
+export const SEVERITY_LEVELS = {
+  low: 'No material disruption expected; routine monitoring suffices',
+  medium: 'Notable disruption risk; mitigation planning recommended',
+  critical: 'Active disruption at a profile location; immediate action needed',
+}
+
+/** Gate 3b: severity of the situation as a Jev choice over the scored results. */
+export async function assessSeverity(jev: Jev, profile: RiskProfile, scored: ScoredResult[]): Promise<string> {
+  const result = await jev.systemOne({
+    state: { profile, results: scored },
+    questions: {
+      severity: choice(
+        'Given the scored evidence, how severe is the current supply-chain situation for the profile?',
+        SEVERITY_LEVELS,
+      ),
+    },
+  })
+  const answer = result.answers.severity as { choice: string }
+  if (!(answer.choice in SEVERITY_LEVELS)) throw new Error(`Invalid severity: ${answer.choice}`)
+  return answer.choice
 }

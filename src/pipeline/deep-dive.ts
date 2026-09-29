@@ -1,9 +1,9 @@
 import type { Database } from 'bun:sqlite'
 import type { MCPClient } from '@ai-sdk/mcp'
-import { choice } from '@typesafe-ai/sdk'
 import { generateText, stepCountIs } from 'ai'
 import { updateSourceUtility } from '../db.ts'
-import { type Jev, type RiskProfile, rankQueries, type ScoredResult, scoreResults } from '../services/jev.ts'
+import type { RiskProfile, ScoredResult } from '../services/jev.ts'
+import type { Judge } from '../services/judge.ts'
 import type { SweepUsage } from '../services/usage.ts'
 import { createProposalTools, parseSearchResults } from '../services/you.ts'
 import { formatReport } from './report.ts'
@@ -43,7 +43,8 @@ export function fallbackQuery(profile: RiskProfile): string {
 
 export type RetrieveDeps = {
   client: Pick<MCPClient, 'tools'>
-  jev: Jev
+  /** The judgment engine (Jev or the Qwen ablation judge). */
+  judge: Judge
   db: Database
   userId: string
   /** Real profile — Gate 3 scores relevancy against its locations/triggers. */
@@ -126,7 +127,7 @@ export async function retrieveAndScore(deps: RetrieveDeps, queries: string[]): P
 
   // Gate 3 scores relevancy against the caller-provided profile — the empty
   // literal was a past bug (a briefing scored against nothing relevant).
-  const scored = await scoreResults(deps.jev, deps.profile, results)
+  const scored = await deps.judge.scoreResults(deps.profile, results, deps.usage)
 
   updateSourceUtility(
     deps.db,
@@ -212,28 +213,6 @@ async function fetchContents(deps: RetrieveDeps, urls: string[]): Promise<string
   return texts.join('\n\n')
 }
 
-const SEVERITY_LEVELS = {
-  low: 'No material disruption expected; routine monitoring suffices',
-  medium: 'Notable disruption risk; mitigation planning recommended',
-  critical: 'Active disruption at a profile location; immediate action needed',
-}
-
-/** Gate 3b: severity of the situation as a Jev choice over the scored results. */
-async function assessSeverity(jev: Jev, profile: RiskProfile, scored: ScoredResult[]): Promise<string> {
-  const result = await jev.systemOne({
-    state: { profile, results: scored },
-    questions: {
-      severity: choice(
-        'Given the scored evidence, how severe is the current supply-chain situation for the profile?',
-        SEVERITY_LEVELS,
-      ),
-    },
-  })
-  const answer = result.answers.severity as { choice: string }
-  if (!(answer.choice in SEVERITY_LEVELS)) throw new Error(`Invalid severity: ${answer.choice}`)
-  return answer.choice
-}
-
 /**
  * Stages 2–4 for one profile: agentic proposal loop (Jev-gated searches),
  * retrieval + scoring, contents fetch, Markdown synthesis, and assembly
@@ -254,7 +233,7 @@ export async function deepDive(
   // budget — deterministic owner intent, and knowledge providers match
   // fact-shaped triggers ("TSMC revenue latest quarter" -> licensed
   // financials) that the model may not propose.
-  const ranked = await rankQueries(deps.jev, profile, proposed)
+  const ranked = await deps.judge.rankQueries(profile, proposed, deps.usage)
   const selected = ranked.slice(0, deps.maxQueries).map((r) => r.query)
   const queries = [...new Set([...selected, ...profile.triggers])]
   const scored = await retrieveAndScore(deps, queries)
@@ -266,7 +245,7 @@ export async function deepDive(
     top.map((item) => item.url).filter((url) => url !== ''),
   )
   const [severity, synthesis] = await Promise.all([
-    assessSeverity(deps.jev, profile, top),
+    deps.judge.assessSeverity(profile, top, deps.usage),
     generateText({
       model: deps.model,
       system:

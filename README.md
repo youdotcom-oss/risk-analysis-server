@@ -184,6 +184,12 @@ loudly at startup. `RISK_MAX_QUERIES` (default `8`) caps how many
 model-proposed queries execute after Gate 2 ranks them — the proposal loop
 itself never executes searches.
 
+`RISK_JUDGE` (`jev`, default, or `qwen`) selects the judgment engine that
+answers the four gate decisions — triage, query ranking, result scoring,
+severity. `qwen` swaps in the sweep model as the judge (same questions,
+answered in strict JSON): the ablation seam for comparing judgment engines
+under an identical pipeline.
+
 ## License
 
 MIT

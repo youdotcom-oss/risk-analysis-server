@@ -11,6 +11,10 @@ export type SweepUsage = {
   jevOutputTokens: number
   searchCalls: number
   contentsCalls: number
+  /** Ablation (Qwen-as-judge) counters: billed at OpenRouter rates, not Jev's. */
+  judgeInputTokens: number
+  judgeOutputTokens: number
+  judgeMalformed: number
 }
 
 export function createSweepUsage(): SweepUsage {
@@ -19,6 +23,9 @@ export function createSweepUsage(): SweepUsage {
     jevOutputTokens: 0,
     searchCalls: 0,
     contentsCalls: 0,
+    judgeInputTokens: 0,
+    judgeOutputTokens: 0,
+    judgeMalformed: 0,
   }
 }
 

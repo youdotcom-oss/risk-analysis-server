@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { defaultDbPath, missingKeyWarnings, resolveTriageThreshold } from '../config.ts'
+import { defaultDbPath, missingKeyWarnings, resolveJudge, resolveTriageThreshold } from '../config.ts'
 
 const savedEnv = { ...process.env }
 afterAll(() => {
@@ -70,5 +70,20 @@ describe('resolveTriageThreshold', () => {
     for (const bad of ['abc', '1.5', '-1', '']) {
       expect(() => resolveTriageThreshold({ RISK_TRIAGE_THRESHOLD: bad })).toThrow(/RISK_TRIAGE_THRESHOLD/)
     }
+  })
+})
+
+describe('resolveJudge', () => {
+  test('defaults to jev when unset', () => {
+    expect(resolveJudge({})).toBe('jev')
+  })
+
+  test('accepts both engines', () => {
+    expect(resolveJudge({ RISK_JUDGE: 'jev' })).toBe('jev')
+    expect(resolveJudge({ RISK_JUDGE: 'qwen' })).toBe('qwen')
+  })
+
+  test('rejects unknown engines loudly instead of silently defaulting', () => {
+    expect(() => resolveJudge({ RISK_JUDGE: 'claude' })).toThrow(/RISK_JUDGE/)
   })
 })
