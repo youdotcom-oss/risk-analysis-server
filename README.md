@@ -132,8 +132,9 @@ flowchart TD
   P["Profile"] --> S1["STAGE 1 · TRIAGE<br/>You.com search (highlights)<br/>Jev noul: threat probability"]
   S1 -->|"&lt; threshold<br/>(default 0.50)"| CLEAN["persist low-severity<br/>clean-sweep report · STOP"]
   S1 -->|"≥ threshold"| S2["STAGE 2 · QUERY PROPOSAL<br/>Vercel AI SDK generateText<br/>qwen + you-search tool, ≤5 steps"]
-  S2 --> G2["Jev noul gate inside the tool:<br/>query must be geospatially precise —<br/>rejected queries return re-propose hints"]
-  G2 --> S3["STAGE 3 · RETRIEVAL + SCORING<br/>code-invoked you-search per query<br/>knowledge=“core” → licensed facts<br/>(Fiscal.ai, BLS, EIA, FRED, AccuWeather)<br/>each with attribution + asOf"]
+  S2 --> G2["Gate 2 · Jev ranks all proposals<br/>in one batched call — geospatially<br/>precise queries score highest"]
+  G2 -->|"top RISK_MAX_QUERIES<br/>(default 8)"| S3["STAGE 3 · RETRIEVAL + SCORING<br/>code-invoked you-search per query<br/>knowledge=“core” → licensed facts<br/>(Fiscal.ai, BLS, EIA, FRED, AccuWeather)<br/>each with attribution + asOf"]
+  G2 -->|"the rest — never executed"| CUT["budgeted out"]
   S3 --> G3["Jev score 0–2 per result<br/>vs the profile's triggers<br/>+1 provenance boost for knowledge"]
   G3 --> R["topScored: 15 slots<br/>knowledge keeps reserved slots"]
   R --> S3b["STAGE 3b · PAGE FETCH<br/>you-contents ≤10 URLs<br/>≤12k chars/page · ≤100k total"]
@@ -179,7 +180,9 @@ sweeps fail with the specific auth error.
 
 `RISK_TRIAGE_THRESHOLD` (default `0.5`) sets the Gate 1 escalation cutoff:
 sweeps escalate only when the triage noul reaches it. Invalid values fail
-loudly at startup.
+loudly at startup. `RISK_MAX_QUERIES` (default `8`) caps how many
+model-proposed queries execute after Gate 2 ranks them — the proposal loop
+itself never executes searches.
 
 ## License
 
