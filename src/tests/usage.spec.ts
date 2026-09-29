@@ -6,7 +6,7 @@ import { deepDive } from '../pipeline/deep-dive.ts'
 import type { SystemOneCaller } from '../services/jev.ts'
 import { createJev } from '../services/jev.ts'
 import { buildSweepUsage, createSweepUsage, trackJevUsage } from '../services/usage.ts'
-import { createDeepDiveTools } from '../services/you.ts'
+import { createProposalTools } from '../services/you.ts'
 
 // scoreResults must tally nothing itself (it's Jev-side, tracked via
 // trackJevUsage), but the wrapper used in production is the composed one.
@@ -42,33 +42,25 @@ describe('deepDive usage counters', () => {
     expect(usage.jevOutputTokens).toBeGreaterThan(0)
   })
 
-  test('proposal-loop wrapper counts only gate-accepted searches', async () => {
+  test('proposal recorder never executes searches — execution moves to the budgeted stage', async () => {
     const usage = createSweepUsage()
+    const { deps, rawSearchCalls } = makeDeepDiveDeps(usage)
+    void deps
 
-    // Rejected query: feedback, no raw search executed, nothing counted.
-    const rejecting = makeDeepDiveDeps(usage, { acceptQueries: false })
-    const rejectingSearch = ((await createDeepDiveTools(rejecting.deps)) as Record<string, never>)[
-      'you-search'
-    ] as never
-    await (rejectingSearch as { execute: (input: Record<string, unknown>) => Promise<unknown> }).execute({
-      query: 'vague thing',
-    })
-    expect(usage.searchCalls).toBe(0)
-    expect(rejecting.rawSearchCalls).toBe(0)
-
-    // Accepted query: raw search fires and is counted.
-    const accepting = makeDeepDiveDeps(usage)
-    const proposalTools = (await createDeepDiveTools(accepting.deps)) as Record<
+    const tools = createProposalTools() as Record<
       string,
       { execute: (input: Record<string, unknown>) => Promise<unknown> }
     >
-    await proposalTools['you-search']!.execute({ query: 'Hamburg Port strike' })
-    expect(usage.searchCalls).toBe(1)
-    expect(accepting.rawSearchCalls).toBe(1)
+    const result = await (tools.propose_query as { execute: (i: Record<string, unknown>) => Promise<unknown> }).execute(
+      { query: 'Hamburg Port strike' },
+    )
+    expect((result as { content: { text: string }[] }).content[0]?.text).toContain('Recorded')
+    expect(usage.searchCalls).toBe(0)
+    expect(rawSearchCalls).toBe(0)
   })
 })
 
-function makeDeepDiveDeps(usage: ReturnType<typeof createSweepUsage>, options: { acceptQueries?: boolean } = {}) {
+function makeDeepDiveDeps(usage: ReturnType<typeof createSweepUsage>) {
   let rawSearchCalls = 0
   const tools = {
     'you-search': {
@@ -99,7 +91,6 @@ function makeDeepDiveDeps(usage: ReturnType<typeof createSweepUsage>, options: {
       },
     },
   }
-  const accept = options.acceptQueries ?? true
   const rawJev = {
     systemOne(request: unknown) {
       const questions = Object.keys((request as { questions: Record<string, unknown> }).questions)
@@ -108,7 +99,7 @@ function makeDeepDiveDeps(usage: ReturnType<typeof createSweepUsage>, options: {
           key === 'severity'
             ? [key, { type: 'choice', choice: 'medium', confidence: 0.9 }]
             : key.startsWith('q')
-              ? [key, { type: 'noul', noul: accept ? 0.9 : 0.1 }]
+              ? [key, { type: 'noul', noul: 0.9 }]
               : [key, { type: 'score', score: 2, confidence: 0.8 }],
         ),
       )

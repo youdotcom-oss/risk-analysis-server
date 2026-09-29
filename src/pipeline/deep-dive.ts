@@ -1,11 +1,11 @@
 import type { Database } from 'bun:sqlite'
 import type { MCPClient } from '@ai-sdk/mcp'
 import { choice } from '@typesafe-ai/sdk'
-import { generateText, stepCountIs, type ToolSet } from 'ai'
+import { generateText, stepCountIs } from 'ai'
 import { updateSourceUtility } from '../db.ts'
-import { type Jev, type RiskProfile, type ScoredResult, scoreResults } from '../services/jev.ts'
+import { type Jev, type RiskProfile, rankQueries, type ScoredResult, scoreResults } from '../services/jev.ts'
 import type { SweepUsage } from '../services/usage.ts'
-import { createDeepDiveTools, parseSearchResults } from '../services/you.ts'
+import { createProposalTools, parseSearchResults } from '../services/you.ts'
 import { formatReport } from './report.ts'
 
 export type QueryToolCallStep = {
@@ -13,15 +13,15 @@ export type QueryToolCallStep = {
 }
 
 /**
- * Stage 2 harvest: the executed you-search calls' query inputs — each one
- * already passed Jev Gate 2 (the gate lives in the tool execute). Deduped,
- * first-seen order.
+ * Stage 2 harvest: the proposed queries' inputs from propose_query tool-call
+ * steps. Nothing has executed yet — candidates are ranked next, and only the
+ * budgeted slice runs. Deduped, first-seen order.
  */
 export function collectQueries(steps: QueryToolCallStep[]): string[] {
   const queries: string[] = []
   for (const step of steps) {
     for (const part of step.content) {
-      if (part.type === 'tool-call' && part.toolName === 'you-search') {
+      if (part.type === 'tool-call' && part.toolName === 'propose_query') {
         const query = (part.input as { query?: unknown } | undefined)?.query
         if (typeof query === 'string' && query !== '' && !queries.includes(query)) {
           queries.push(query)
@@ -50,6 +50,8 @@ export type RetrieveDeps = {
   profile: ProfileRecordLike
   /** Per-sweep provider usage ledger (search/contents calls, Jev tokens). */
   usage: SweepUsage
+  /** Max model-proposed queries executed after Gate 2 ranking. */
+  maxQueries: number
 }
 
 export type DeepDiveDeps = RetrieveDeps & {
@@ -149,7 +151,9 @@ export async function retrieveAndScore(deps: RetrieveDeps, queries: string[]): P
 const PROPOSAL_PROMPT = (profile: RiskProfile) =>
   `You are investigating supply-chain risk for "${profile.title}". ` +
   `Locations: ${profile.locations.join(', ')}. Policy triggers: ${profile.triggers.join(', ')}. ` +
-  'Search for concrete disruptions at these locations. Prefer precise geospatial queries.'
+  'Propose searches for concrete disruptions at these locations using the propose_query tool. ' +
+  'Prefer precise geospatial queries. You are not searching — candidates are ranked afterwards ' +
+  'and only the best are executed, so propose several distinct angles.'
 
 const MAX_PROPOSAL_STEPS = 5
 const MAX_CONTENT_URLS = 10
@@ -173,17 +177,11 @@ export function topScored(scored: ScoredResult[], limit = MAX_TOP_RESULTS): Scor
   return [...web, ...knowledge]
 }
 
-/** Stage 2: run the agentic proposal loop with Jev-gated search tools. */
+/** Stage 2: run the agentic proposal loop with the query-recorder tool. */
 async function proposeQueries(deps: DeepDiveDeps, profile: RiskProfile): Promise<string[]> {
-  const tools = (await createDeepDiveTools({
-    client: deps.client,
-    jev: deps.jev,
-    profile,
-    usage: deps.usage,
-  })) as ToolSet
   const result = await generateText({
     model: deps.model,
-    tools,
+    tools: createProposalTools() as Parameters<typeof generateText>[0]['tools'],
     stopWhen: stepCountIs(MAX_PROPOSAL_STEPS),
     prompt: PROPOSAL_PROMPT(profile),
   })
@@ -251,10 +249,14 @@ export async function deepDive(
   knowledgeFacts: { title: string; description: string; attribution?: string[]; asOf?: string }[]
 }> {
   const proposed = await proposeQueries(deps, profile)
-  // Raw profile triggers run verbatim as deterministic Stage-3 queries:
-  // knowledge providers match fact-shaped triggers ("TSMC revenue latest
-  // quarter" -> licensed financials) that the model may not propose.
-  const queries = [...new Set([...proposed, ...profile.triggers])]
+  // Gate 2: batch-rank every proposal in one Jev call; only the budgeted
+  // slice executes. Raw profile triggers run verbatim regardless of the
+  // budget — deterministic owner intent, and knowledge providers match
+  // fact-shaped triggers ("TSMC revenue latest quarter" -> licensed
+  // financials) that the model may not propose.
+  const ranked = await rankQueries(deps.jev, profile, proposed)
+  const selected = ranked.slice(0, deps.maxQueries).map((r) => r.query)
+  const queries = [...new Set([...selected, ...profile.triggers])]
   const scored = await retrieveAndScore(deps, queries)
   const top = topScored(scored)
   const contents = await fetchContents(

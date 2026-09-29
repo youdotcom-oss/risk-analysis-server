@@ -28,11 +28,10 @@ export async function triageThreat(jev: Jev, profile: RiskProfile, highlights: s
   return result.answers.threat.noul
 }
 
-export type QueryVerdict = {
+export type RankedQuery = {
   query: string
-  accepted: boolean
+  noul: number
 }
-const QUERY_THRESHOLD = 0.5
 
 // Keys are constructed by us one line above each lookup; a missing answer is a
 // contract violation, so fail loudly instead of tolerating undefined.
@@ -42,8 +41,13 @@ function answerAt<A extends { noul?: number; score?: number }>(answers: Record<s
   return answer
 }
 
-/** Jev Gate 2: batch-validate candidate deep-dive queries in one systemOne call. */
-export async function validateQueries(jev: Jev, profile: RiskProfile, queries: string[]): Promise<QueryVerdict[]> {
+/**
+ * Jev Gate 2: rank candidate deep-dive queries in one batched systemOne call,
+ * best first. Judgment only — how much of the ranked list to execute is a
+ * code-owned budget (RISK_MAX_QUERIES), not a per-query accept/reject.
+ */
+export async function rankQueries(jev: Jev, profile: RiskProfile, queries: string[]): Promise<RankedQuery[]> {
+  if (queries.length === 0) return []
   const questions = Object.fromEntries(
     queries.map((query, index) => [
       `q${index}`,
@@ -57,10 +61,11 @@ export async function validateQueries(jev: Jev, profile: RiskProfile, queries: s
     state: { profile, queries },
     questions,
   })
-  return queries.map((query, index) => ({
+  const ranked = queries.map((query, index) => ({
     query,
-    accepted: answerAt(result.answers as Record<string, { noul: number }>, `q${index}`).noul >= QUERY_THRESHOLD,
+    noul: answerAt(result.answers as Record<string, { noul: number }>, `q${index}`).noul,
   }))
+  return ranked.sort((a, b) => b.noul - a.noul)
 }
 
 export type ScoredResult = {

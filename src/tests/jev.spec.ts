@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { SystemOneCaller } from '../services/jev.ts'
-import { createJev, scoreResults, triageThreat, validateQueries } from '../services/jev.ts'
+import { createJev, rankQueries, scoreResults, triageThreat } from '../services/jev.ts'
 
 const profile = {
   title: 'EU port operations',
@@ -32,8 +32,8 @@ describe('triageThreat', () => {
   })
 })
 
-describe('validateQueries', () => {
-  test('batches candidates into one call and filters by threshold', async () => {
+describe('rankQueries', () => {
+  test('batches candidates into one call and ranks by noul, best first', async () => {
     const captured: unknown[] = []
     const caller = {
       systemOne(request: unknown) {
@@ -48,15 +48,24 @@ describe('validateQueries', () => {
       },
     } as unknown as SystemOneCaller
     const jev = createJev(caller)
-    const verdicts = await validateQueries(jev, profile, ['q0', 'q1', 'q2'])
+    const ranked = await rankQueries(jev, profile, ['q0', 'q1', 'q2'])
     expect(captured).toHaveLength(1)
     const request = captured[0] as { questions: Record<string, unknown> }
     expect(Object.keys(request.questions)).toEqual(['q0', 'q1', 'q2'])
-    expect(verdicts).toEqual([
-      { query: 'q0', accepted: true },
-      { query: 'q1', accepted: false },
-      { query: 'q2', accepted: true },
+    expect(ranked).toEqual([
+      { query: 'q0', noul: 0.9 },
+      { query: 'q2', noul: 0.55 },
+      { query: 'q1', noul: 0.2 },
     ])
+  })
+
+  test('answers nothing without calling Jev when there are no candidates', async () => {
+    const caller = {
+      systemOne() {
+        throw new Error('should not be called')
+      },
+    } as unknown as SystemOneCaller
+    expect(await rankQueries(createJev(caller), profile, [])).toEqual([])
   })
 })
 

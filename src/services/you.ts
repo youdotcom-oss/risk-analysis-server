@@ -1,7 +1,5 @@
 import { createMCPClient, type MCPClient } from '@ai-sdk/mcp'
 import { jsonSchema } from 'ai'
-import { type Jev, type RiskProfile, validateQueries } from './jev.ts'
-import type { SweepUsage } from './usage.ts'
 
 type TransportConfig = Extract<Parameters<typeof createMCPClient>[0]['transport'], { url: string }>
 
@@ -86,79 +84,35 @@ export function parseSearchResults(text: string): NormalizedSearchResult[] {
   return collect(Array.isArray(resultsBlock) ? resultsBlock : parsed)
 }
 
-export type DeepDiveDeps = {
-  client: Pick<MCPClient, 'tools'>
-  jev: Jev
-  profile: RiskProfile
-  /** Per-sweep provider usage ledger — counts the gate-accepted raw search. */
-  usage: SweepUsage
-}
-
 /**
- * Agentic-path toolset: `you-search` re-wrapped with `knowledge` hidden from
- * the model and `knowledge: "core"` injected server-bound behind Jev Gate 2.
+ * Proposal-loop toolset: a pure query recorder. The model never executes
+ * searches — every proposal is collected, batch-ranked by Jev (Gate 2), and
+ * only the top-ranked slice is executed with the code-owned budget. Executing
+ * searches inside the loop once cost 19–26 searches per sweep; ranking first
+ * cuts retrieval to the budget while keeping the model's diversity of angles.
  */
-export async function createDeepDiveTools(deps: DeepDiveDeps): Promise<Record<string, unknown>> {
-  const mcpTools = await deps.client.tools()
-  const search = mcpTools['you-search']
-  if (!search) throw new Error('you-search tool not exposed by the You.com MCP server')
-  const raw =
-    'jsonSchema' in search.inputSchema
-      ? search.inputSchema.jsonSchema
-      : (() => {
-          throw new Error('you-search inputSchema is not JSON-Schema-backed')
-        })()
-  const { knowledge: _omitted, ...properties } = raw.properties ?? {}
-  type RawSchema = typeof raw
-
-  // Proposal loop gets you-search only. you-contents returns full web
-  // pages; when the model fetched one mid-loop it stayed in conversation
-  // history and blew the context cap (Germany: fixed ~115k tokens
-  // regardless of profile scope). Contents are fetched code-invoked in
-  // Stage 3b — the loop never needs them.
-  const { 'you-contents': _contents, ...proposalTools } = mcpTools
+export function createProposalTools(): Record<string, unknown> {
   return {
-    ...proposalTools,
-    'you-search': {
-      ...search,
+    propose_query: {
+      description:
+        'Record one search query to execute later. Queries must contain a strict ' +
+        'geospatial identifier and avoid broad generic keywords. Candidates are ' +
+        'ranked afterwards and only the best are executed — propose several angles.',
       inputSchema: jsonSchema({
-        ...raw,
-        properties,
-        required: (raw.required ?? []).filter((name: string) => name !== 'knowledge'),
+        type: 'object',
+        properties: { query: { type: 'string' } },
+        required: ['query'],
         additionalProperties: false,
-      } as RawSchema),
-      async execute(input: Record<string, unknown>, options?: unknown) {
-        const query = String(input.query ?? '')
-        const [verdict] = await validateQueries(deps.jev, deps.profile, [query])
-        if (verdict && !verdict.accepted) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text:
-                  `Query rejected by relevance gate: "${query}". ` +
-                  'Re-propose with a strict geospatial identifier and no broad generic keywords.',
-              },
-            ],
-          }
-        }
-        // The gate accepted: this raw search is a real billable call — count it.
-        deps.usage.searchCalls += 1
-        // Project to the fields the proposal model actually needs (url,
-        // title, description) instead of forwarding full highlight payloads —
-        // full text across 5 steps once exceeded a 131k context (150k tokens).
-        const output = (await search.execute(
-          { ...input, knowledge: 'core' },
-          options as Parameters<typeof search.execute>[1],
-        )) as { content?: { type: string; text?: string }[] }
-        const compact = output.content
-          ?.filter((block) => block.type === 'text')
-          .flatMap((block) => parseSearchResults(block.text ?? ''))
+      }),
+      async execute(input: Record<string, unknown>) {
+        const query = String(input.query ?? '').trim()
         return {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify({ results: compact }),
+              text: query
+                ? `Recorded: "${query}". Propose another angle or finish.`
+                : 'Empty query ignored — propose a concrete geospatial search.',
             },
           ],
         }

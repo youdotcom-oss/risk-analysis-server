@@ -33,6 +33,8 @@ export type SweepDeps = {
   db: Database
   /** Gate 1 escalation cutoff on the triage noul. Default 0.5. */
   triageThreshold?: number
+  /** Max model-proposed queries executed after Gate 2 ranking. Default 8. */
+  maxQueries?: number
   fetchHighlights: (profile: ProfileRecord, usage: SweepUsage) => Promise<string[]>
   triage: (profile: ProfileRecord, highlights: string[], usage: SweepUsage) => Promise<number>
   deepDive: (
@@ -82,6 +84,8 @@ export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client' | 'profile' | 'usag
   db: Database
   /** Gate 1 escalation cutoff (RISK_TRIAGE_THRESHOLD). Default 0.5. */
   triageThreshold?: number
+  /** Max model-proposed queries executed after Gate 2 ranking (RISK_MAX_QUERIES). Default 8. */
+  maxQueries?: number
   /** The You.com MCP client, or a promise for it (lazy connect keeps startup
    *  independent of the upstream server's availability). */
   ydcClient: Pick<MCPClient, 'tools'> | Promise<Pick<MCPClient, 'tools'>>
@@ -93,6 +97,7 @@ export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
   return {
     db: args.db,
     triageThreshold: args.triageThreshold,
+    maxQueries: args.maxQueries ?? 8,
     // Each run owns its ledger: runSweep mints one and hands it down, so
     // concurrent sweeps sharing these deps never mix usage attribution.
     fetchHighlights: async (profile, usage) => fetchHighlights(await resolveClient(), profile, usage),
@@ -107,6 +112,7 @@ export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
           userId: args.userId,
           profile,
           usage,
+          maxQueries: args.maxQueries ?? 8,
         },
         profile,
       ),

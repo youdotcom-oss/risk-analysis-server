@@ -32,6 +32,24 @@ export function resolveTriageThreshold(env: Record<string, string | undefined> =
   return value
 }
 
+export const DEFAULT_MAX_QUERIES = 8
+
+/**
+ * How many model-proposed queries execute after Gate 2 ranking. Invalid
+ * values fail loudly — a silently-different budget would change the
+ * retrieval bill and the report's evidence base without anyone noticing.
+ */
+export function resolveMaxQueries(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.RISK_MAX_QUERIES
+  if (raw === undefined) return DEFAULT_MAX_QUERIES
+  const value = Number(raw)
+  // Number('') is 0 — an empty value must fail loudly, not mean "execute none".
+  if (raw.trim() === '' || !Number.isInteger(value) || value < 1 || value > 20) {
+    throw new Error(`RISK_MAX_QUERIES must be an integer in [1, 20], got: "${raw}"`)
+  }
+  return value
+}
+
 /**
  * Startup configuration messaging. Names missing API keys and their
  * consequence so misconfiguration is visible at startup instead of

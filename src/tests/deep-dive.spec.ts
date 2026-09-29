@@ -31,7 +31,7 @@ describe('collectQueries', () => {
           {
             type: 'tool-call',
             toolCallId: 'c1',
-            toolName: 'you-search',
+            toolName: 'propose_query',
             input: { query: 'Hamburg Port strike' },
           },
         ],
@@ -42,13 +42,13 @@ describe('collectQueries', () => {
           {
             type: 'tool-call',
             toolCallId: 'c2',
-            toolName: 'you-search',
+            toolName: 'propose_query',
             input: { query: 'Hamburg Port strike' },
           },
           {
             type: 'tool-call',
             toolCallId: 'c3',
-            toolName: 'you-search',
+            toolName: 'propose_query',
             input: { query: 'Duisburg rail blockade' },
           },
         ],
@@ -70,7 +70,7 @@ describe('collectQueries', () => {
           {
             type: 'tool-call',
             toolCallId: 'c2',
-            toolName: 'you-search',
+            toolName: 'propose_query',
             input: {},
           },
         ],
@@ -211,6 +211,7 @@ describe('retrieveAndScore', () => {
       db,
       userId: 'local-user',
       usage: createSweepUsage(),
+      maxQueries: 8,
       profile: {
         id: 'p-real',
         userId: 'local-user',
@@ -289,6 +290,7 @@ describe('retrieveAndScore', () => {
       userId: 'local-user',
       profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
       usage: createSweepUsage(),
+      maxQueries: 8,
     }
     const scored = await retrieveAndScore(deps, ['Rotterdam port strike'])
     // Stage 3 must request knowledge — these are the results that reach synthesis
@@ -317,6 +319,7 @@ describe('retrieveAndScore', () => {
       userId: 'local-user',
       profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
       usage: createSweepUsage(),
+      maxQueries: 8,
     }
     const scored = await retrieveAndScore(deps, ['Hamburg Port strike', 'Duisburg rail blockade'])
 
@@ -419,7 +422,7 @@ describe('deepDive', () => {
             {
               type: 'tool-call',
               toolCallId: 'c1',
-              toolName: 'you-search',
+              toolName: 'propose_query',
               input: { query: 'Hamburg Port strike' } as never,
             },
           ],
@@ -454,6 +457,7 @@ describe('deepDive', () => {
         jev: createJev(jevForDeepDive(2.5)),
         db,
         usage: createSweepUsage(),
+        maxQueries: 8,
         userId: 'local-user',
         profile: {
           id: 'p1',
@@ -540,7 +544,7 @@ describe('deepDive', () => {
               {
                 type: 'tool-call',
                 toolCallId: 'c1',
-                toolName: 'you-search',
+                toolName: 'propose_query',
                 input: { query: 'Hamburg Port strike' } as never,
               },
             ],
@@ -568,6 +572,7 @@ describe('deepDive', () => {
         jev: createJev(jevForDeepDive(2.5)),
         db,
         usage: createSweepUsage(),
+        maxQueries: 8,
         userId: 'local-user',
         profile: {
           id: 'p1',
@@ -634,6 +639,7 @@ describe('deepDive', () => {
         jev: createJev(jevForDeepDive(1)),
         db,
         usage: createSweepUsage(),
+        maxQueries: 8,
         userId: 'local-user',
         profile: {
           id: 'p1',

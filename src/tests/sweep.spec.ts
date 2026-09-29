@@ -284,7 +284,7 @@ describe('buildSweepDeps', () => {
     // The mock model's second response is the synthesis step in this
     // harness (its tool-call step never executes, so the loop ends after
     // one step and the next doGenerate result becomes the synthesis).
-    expect(report?.content_html).toContain('Searches complete.')
+    expect(report?.content_html).toContain('<p>Briefing</p>')
     // Stage 1 highlights triage must request knowledge too — the escalate
     // decision deserves the same licensed facts as everything downstream.
     expect(searchInputs.length).toBeGreaterThan(0)
@@ -379,8 +379,8 @@ describe('buildSweepDeps', () => {
     expect(outcome.usage).toBeDefined()
     expect(outcome.usage!.searchCalls).toBe(3)
     expect(outcome.usage!.contentsCalls).toBe(1)
-    expect(outcome.usage!.jevInputTokens).toBe(120)
-    expect(outcome.usage!.jevOutputTokens).toBe(9)
+    expect(outcome.usage!.jevInputTokens).toBe(160)
+    expect(outcome.usage!.jevOutputTokens).toBe(12)
     db.close()
   })
 })
