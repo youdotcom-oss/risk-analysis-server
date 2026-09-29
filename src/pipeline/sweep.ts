@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { MCPClient } from '@ai-sdk/mcp'
 import { completeSweepTask, failSweepTask } from '../db.ts'
 import { triageThreat } from '../services/jev.ts'
+import { buildSweepUsage, createSweepUsage, type SweepUsage } from '../services/usage.ts'
 import { parseSearchResults } from '../services/you.ts'
 import type { DeepDiveDeps } from './deep-dive.ts'
 import { deepDive, fallbackQuery } from './deep-dive.ts'
@@ -21,13 +22,18 @@ export type SweepOutcome = {
   reportId?: string
   /** Licensed knowledge facts (url-less) that reached synthesis. */
   knowledgeHits?: number
+  /** Provider footprint of this run: You.com calls + Jev tokens. */
+  usage: SweepUsage
 }
 
 export type SweepDeps = {
   db: Database
-  fetchHighlights: (profile: ProfileRecord) => Promise<string[]>
-  triage: (profile: ProfileRecord, highlights: string[]) => Promise<number>
-  deepDive: (profile: ProfileRecord) => Promise<{
+  fetchHighlights: (profile: ProfileRecord, usage: SweepUsage) => Promise<string[]>
+  triage: (profile: ProfileRecord, highlights: string[], usage: SweepUsage) => Promise<number>
+  deepDive: (
+    profile: ProfileRecord,
+    usage: SweepUsage,
+  ) => Promise<{
     severity: string
     reportMarkdown: string
     knowledgeHits: number
@@ -38,11 +44,16 @@ export type SweepDeps = {
 const TRIAGE_THRESHOLD = 0.5
 
 /** Stage 1 surface-sweep query: the deterministic template from the deep-dive module. */
-async function fetchHighlights(client: Pick<MCPClient, 'tools'>, profile: ProfileRecord): Promise<string[]> {
+async function fetchHighlights(
+  client: Pick<MCPClient, 'tools'>,
+  profile: ProfileRecord,
+  usage: SweepUsage,
+): Promise<string[]> {
   const tools = await client.tools()
   const search = tools['you-search']
   if (!search) throw new Error('you-search tool not exposed by the You.com MCP server')
   // Stage 1 decides escalation — request licensed knowledge facts here too
+  usage.searchCalls += 1
   const output = await search.execute(
     { query: fallbackQuery(profile), extraction: 'highlights', knowledge: 'core' },
     undefined as unknown as Parameters<typeof search.execute>[1],
@@ -62,7 +73,7 @@ async function fetchHighlights(client: Pick<MCPClient, 'tools'>, profile: Profil
     .filter((highlight) => highlight !== '')
 }
 
-export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client' | 'profile'> & {
+export type BuildSweepDepsArgs = Omit<DeepDiveDeps, 'client' | 'profile' | 'usage'> & {
   db: Database
   /** The You.com MCP client, or a promise for it (lazy connect keeps startup
    *  independent of the upstream server's availability). */
@@ -74,17 +85,20 @@ export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
   const resolveClient = async () => await args.ydcClient
   return {
     db: args.db,
-    fetchHighlights: async (profile) => fetchHighlights(await resolveClient(), profile),
-    triage: (profile, highlights) => triageThreat(args.jev, profile, highlights),
-    deepDive: async (profile) =>
+    // Each run owns its ledger: runSweep mints one and hands it down, so
+    // concurrent sweeps sharing these deps never mix usage attribution.
+    fetchHighlights: async (profile, usage) => fetchHighlights(await resolveClient(), profile, usage),
+    triage: (profile, highlights, usage) => triageThreat(buildSweepUsage(args.jev, usage), profile, highlights),
+    deepDive: async (profile, usage) =>
       await deepDive(
         {
           model: args.model,
           client: await resolveClient(),
-          jev: args.jev,
+          jev: buildSweepUsage(args.jev, usage),
           db: args.db,
           userId: args.userId,
           profile,
+          usage,
         },
         profile,
       ),
@@ -98,8 +112,9 @@ export function buildSweepDeps(args: BuildSweepDepsArgs): SweepDeps {
  * action; sometimes it documents inaction.
  */
 export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise<SweepOutcome> {
-  const highlights = await deps.fetchHighlights(profile)
-  const threat = await deps.triage(profile, highlights)
+  const usage = createSweepUsage()
+  const highlights = await deps.fetchHighlights(profile, usage)
+  const threat = await deps.triage(profile, highlights, usage)
   if (threat < TRIAGE_THRESHOLD) {
     // A report isn't always for action — sometimes it documents inaction:
     // persist a low-severity clean-sweep record so history stays complete
@@ -134,9 +149,9 @@ export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise
         ].join('\n'),
         now: Date.now(),
       })
-    return { escalated: false, severity: 'low', reportId, knowledgeHits: 0 }
+    return { escalated: false, severity: 'low', reportId, knowledgeHits: 0, usage }
   }
-  const report = await deps.deepDive(profile)
+  const report = await deps.deepDive(profile, usage)
   const reportId = randomUUID()
   deps.db
     .query(
@@ -157,6 +172,7 @@ export async function runSweep(deps: SweepDeps, profile: ProfileRecord): Promise
     severity: report.severity,
     reportId,
     knowledgeHits: report.knowledgeHits,
+    usage,
   }
 }
 

@@ -9,6 +9,7 @@ import { collectQueries, deepDive, fallbackQuery, retrieveAndScore, topScored } 
 import type { ProfileRecord } from '../pipeline/sweep.ts'
 import type { SystemOneCaller } from '../services/jev.ts'
 import { createJev } from '../services/jev.ts'
+import { createSweepUsage } from '../services/usage.ts'
 
 const dirs: string[] = []
 
@@ -209,6 +210,7 @@ describe('retrieveAndScore', () => {
       } as unknown as SystemOneCaller,
       db,
       userId: 'local-user',
+      usage: createSweepUsage(),
       profile: {
         id: 'p-real',
         userId: 'local-user',
@@ -286,6 +288,7 @@ describe('retrieveAndScore', () => {
       db,
       userId: 'local-user',
       profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
+      usage: createSweepUsage(),
     }
     const scored = await retrieveAndScore(deps, ['Rotterdam port strike'])
     // Stage 3 must request knowledge — these are the results that reach synthesis
@@ -313,6 +316,7 @@ describe('retrieveAndScore', () => {
       db,
       userId: 'local-user',
       profile: { id: 'p1', userId: 'local-user', title: 'EU port operations', locations: [], triggers: [] },
+      usage: createSweepUsage(),
     }
     const scored = await retrieveAndScore(deps, ['Hamburg Port strike', 'Duisburg rail blockade'])
 
@@ -449,6 +453,7 @@ describe('deepDive', () => {
         client: { tools: () => Promise.resolve(tools) } as never,
         jev: createJev(jevForDeepDive(2.5)),
         db,
+        usage: createSweepUsage(),
         userId: 'local-user',
         profile: {
           id: 'p1',
@@ -562,6 +567,7 @@ describe('deepDive', () => {
         client: { tools: () => Promise.resolve(tools) } as never,
         jev: createJev(jevForDeepDive(2.5)),
         db,
+        usage: createSweepUsage(),
         userId: 'local-user',
         profile: {
           id: 'p1',
@@ -627,6 +633,7 @@ describe('deepDive', () => {
         client: { tools: () => Promise.resolve(wrappedTools) } as never,
         jev: createJev(jevForDeepDive(1)),
         db,
+        usage: createSweepUsage(),
         userId: 'local-user',
         profile: {
           id: 'p1',

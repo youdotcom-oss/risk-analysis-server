@@ -7,6 +7,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { SignJWT } from 'jose'
 import { openDb } from '../db.ts'
 import { createApp } from '../server.ts'
+import { createSweepUsage } from '../services/usage.ts'
 
 const dirs: string[] = []
 afterAll(() => {
@@ -34,7 +35,7 @@ describe('e2e: real client through the http entry (in-process)', () => {
     const app = createApp({
       db,
       jwtSecret: 'e2e-secret',
-      sweepRunnerFactory: () => async () => ({ escalated: false }),
+      sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
     })
 
     const transport = new StreamableHTTPClientTransport(new URL('http://test.local/mcp'), {
@@ -87,7 +88,7 @@ describe('e2e: real client through the http entry (in-process)', () => {
     const app = createApp({
       db,
       jwtSecret: 'e2e-secret',
-      sweepRunnerFactory: () => async () => ({ escalated: false }),
+      sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
     })
     const res = await app.fetch(
       new Request('http://test.local/mcp', {

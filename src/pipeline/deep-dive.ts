@@ -4,6 +4,7 @@ import { choice } from '@typesafe-ai/sdk'
 import { generateText, stepCountIs, type ToolSet } from 'ai'
 import { updateSourceUtility } from '../db.ts'
 import { type Jev, type RiskProfile, type ScoredResult, scoreResults } from '../services/jev.ts'
+import type { SweepUsage } from '../services/usage.ts'
 import { createDeepDiveTools, parseSearchResults } from '../services/you.ts'
 import { formatReport } from './report.ts'
 
@@ -47,6 +48,8 @@ export type RetrieveDeps = {
   userId: string
   /** Real profile — Gate 3 scores relevancy against its locations/triggers. */
   profile: ProfileRecordLike
+  /** Per-sweep provider usage ledger (search/contents calls, Jev tokens). */
+  usage: SweepUsage
 }
 
 export type DeepDiveDeps = RetrieveDeps & {
@@ -81,6 +84,7 @@ export async function retrieveAndScore(deps: RetrieveDeps, queries: string[]): P
       // Stage 3 results reach synthesis — request licensed knowledge facts
       // alongside web/news (url-less knowledge items flow through the
       // normalizer and into synthesis; they are excluded from crawling).
+      deps.usage.searchCalls += 1
       const output = await search.execute(
         { query, knowledge: 'core' },
         undefined as unknown as Parameters<typeof search.execute>[1],
@@ -175,6 +179,7 @@ async function proposeQueries(deps: DeepDiveDeps, profile: RiskProfile): Promise
     client: deps.client,
     jev: deps.jev,
     profile,
+    usage: deps.usage,
   })) as ToolSet
   const result = await generateText({
     model: deps.model,
@@ -192,6 +197,7 @@ async function fetchContents(deps: RetrieveDeps, urls: string[]): Promise<string
   const tools = await deps.client.tools()
   const contents = tools['you-contents']
   if (!contents) throw new Error('you-contents tool not exposed by the You.com MCP server')
+  deps.usage.contentsCalls += 1
   const output = await contents.execute(
     { urls: urls.slice(0, MAX_CONTENT_URLS) },
     undefined as unknown as Parameters<typeof contents.execute>[1],

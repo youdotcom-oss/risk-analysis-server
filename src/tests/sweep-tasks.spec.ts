@@ -130,6 +130,36 @@ describe('runSweepForTask', () => {
     expect(task?.result_json).toContain('"reportId"')
   })
 
+  test('persists the per-sweep usage ledger in the task result', async () => {
+    const db = openDb(tempDbPath())
+    db.query(
+      `INSERT INTO risk_profiles (id, user_id, title, locations, policy_triggers, updated_at)
+       VALUES ('p1', 'local-user', 't', '[]', '[]', $now)`,
+    ).run({ now: Date.now() })
+    createSweepTask(db, { taskId: 'tk3', userId: 'local-user', profileId: 'p1', ttlMs: 60_000 })
+    const deps = {
+      db,
+      fetchHighlights: async () => ['h'],
+      triage: async () => 0.8,
+      deepDive: async () => ({
+        severity: 'medium',
+        reportMarkdown: 'brief',
+        knowledgeHits: 2,
+        knowledgeFacts: [],
+      }),
+    } as never
+    await runSweepForTask(db, deps, { id: 'p1', userId: 'local-user', title: 't', locations: [], triggers: [] }, 'tk3')
+    const task = getSweepTask(db, 'tk3')
+    const result = JSON.parse(task?.result_json ?? '{}') as {
+      usage?: { jevInputTokens: number; searchCalls: number }
+    }
+    // The ledger rides out on the completed outcome so an MCP poll response
+    // self-reports the sweep's provider footprint.
+    expect(result.usage).toBeDefined()
+    expect(result.usage!.jevInputTokens).toBe(0)
+    expect(result.usage!.searchCalls).toBe(0)
+  })
+
   test('fails the task with the error message on sweep failure', async () => {
     const db = openDb(tempDbPath())
     createSweepTask(db, {

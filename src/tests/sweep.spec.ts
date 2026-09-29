@@ -139,6 +139,12 @@ describe('sweepAllProfiles', () => {
           severity: 'medium',
           reportId: expect.any(String),
           knowledgeHits: 0,
+          usage: {
+            jevInputTokens: 0,
+            jevOutputTokens: 0,
+            searchCalls: 0,
+            contentsCalls: 0,
+          },
         },
       },
       { profileId: 'p-bad', error: 'synthesizer down' },
@@ -210,7 +216,7 @@ describe('buildSweepDeps', () => {
               type: 'tool-call',
               toolCallId: 'c1',
               toolName: 'you-search',
-              input: { query: 'Hamburg Port strike' } as never,
+              input: JSON.stringify({ query: 'Hamburg Port strike' }) as never,
             },
           ],
           'tool-calls' as never,
@@ -258,11 +264,106 @@ describe('buildSweepDeps', () => {
       .query<{ severity: string; content_html: string }, []>('SELECT severity, content_html FROM risk_reports')
       .get()
     expect(report?.severity).toBe('critical')
-    expect(report?.content_html).toContain('Briefing')
+    // The mock model's second response is the synthesis step in this
+    // harness (its tool-call step never executes, so the loop ends after
+    // one step and the next doGenerate result becomes the synthesis).
+    expect(report?.content_html).toContain('Searches complete.')
     // Stage 1 highlights triage must request knowledge too — the escalate
     // decision deserves the same licensed facts as everything downstream.
     expect(searchInputs.length).toBeGreaterThan(0)
     expect(searchInputs.every((input) => input.knowledge === 'core')).toBe(true)
+    db.close()
+  })
+
+  test('runSweep outcome carries the per-sweep provider usage ledger', async () => {
+    const db = openDb(tempDbPath())
+    db.query(
+      `INSERT INTO risk_profiles (id, user_id, title, locations, policy_triggers, updated_at)
+       VALUES ('p1', 'local-user', 'EU port operations', '["Hamburg Port"]', '["strikes"]', $now)`,
+    ).run({ now: Date.now() })
+
+    const tools = {
+      'you-search': {
+        inputSchema: jsonSchema({ type: 'object' }),
+        async execute() {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  results: [{ url: 'https://hamburg.example/news', snippet: 'Hamburg port strike' }],
+                }),
+              },
+            ],
+          }
+        },
+      },
+      'you-contents': {
+        inputSchema: jsonSchema({ type: 'object' }),
+        async execute() {
+          return { content: [{ type: 'text', text: '# Full article' }] }
+        },
+      },
+    }
+    const model = new MockLanguageModelV4({
+      doGenerate: [
+        mockResult(
+          [
+            {
+              type: 'tool-call',
+              toolCallId: 'c1',
+              toolName: 'you-search',
+              input: JSON.stringify({ query: 'Hamburg Port strike' }) as never,
+            },
+          ],
+          'tool-calls' as never,
+        ),
+        mockResult([{ type: 'text', text: 'Searches complete.' }], 'stop' as never),
+        mockResult([{ type: 'text', text: '<p>Briefing</p>' }], 'stop' as never),
+      ],
+    })
+    // Jev stub returns a usage block on every systemOne call.
+    const jev = {
+      systemOne(request: unknown) {
+        const questions = Object.keys((request as { questions: Record<string, unknown> }).questions)
+        const answers = Object.fromEntries(
+          questions.map((key) =>
+            key === 'threat'
+              ? [key, { type: 'noul', noul: 0.8 }]
+              : key === 'severity'
+                ? [key, { type: 'choice', choice: 'critical', confidence: 0.9 }]
+                : [key, { type: 'score', score: 2.5, confidence: 0.8 }],
+          ),
+        )
+        return Promise.resolve({ answers, usage: { input_tokens: 40, output_tokens: 3 } }) as never
+      },
+    } as unknown as SystemOneCaller
+
+    const deps = buildSweepDeps({
+      db,
+      userId: 'local-user',
+      ydcClient: { tools: () => Promise.resolve(tools) } as never,
+      jev: createJev(jev),
+      model: model as never,
+    } as never)
+
+    const outcome = await runSweep(deps, {
+      id: 'p1',
+      userId: 'local-user',
+      title: 'EU port operations',
+      locations: ['Hamburg Port'],
+      triggers: ['strikes'],
+    })
+
+    // Stage 1 search + proposal query + trigger query = 3 searches; one
+    // contents fetch; Jev: triage + scoring (batched) + severity = 3
+    // systemOne calls x 40/3 tokens (the mock model never executes the
+    // proposal tool, so no gate call fires in this harness).
+    expect(outcome.usage).toBeDefined()
+    expect(outcome.usage!.searchCalls).toBe(3)
+    expect(outcome.usage!.contentsCalls).toBe(1)
+    expect(outcome.usage!.jevInputTokens).toBe(120)
+    expect(outcome.usage!.jevOutputTokens).toBe(9)
     db.close()
   })
 })

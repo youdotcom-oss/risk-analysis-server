@@ -1,6 +1,7 @@
 import { createMCPClient, type MCPClient } from '@ai-sdk/mcp'
 import { jsonSchema } from 'ai'
 import { type Jev, type RiskProfile, validateQueries } from './jev.ts'
+import type { SweepUsage } from './usage.ts'
 
 type TransportConfig = Extract<Parameters<typeof createMCPClient>[0]['transport'], { url: string }>
 
@@ -89,6 +90,8 @@ export type DeepDiveDeps = {
   client: Pick<MCPClient, 'tools'>
   jev: Jev
   profile: RiskProfile
+  /** Per-sweep provider usage ledger — counts the gate-accepted raw search. */
+  usage: SweepUsage
 }
 
 /**
@@ -139,6 +142,8 @@ export async function createDeepDiveTools(deps: DeepDiveDeps): Promise<Record<st
             ],
           }
         }
+        // The gate accepted: this raw search is a real billable call — count it.
+        deps.usage.searchCalls += 1
         // Project to the fields the proposal model actually needs (url,
         // title, description) instead of forwarding full highlight payloads —
         // full text across 5 steps once exceeded a 131k context (150k tokens).

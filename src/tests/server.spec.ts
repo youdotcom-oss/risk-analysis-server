@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { SignJWT } from 'jose'
 import { getActiveProfiles, openDb } from '../db.ts'
 import { createApp } from '../server.ts'
+import { createSweepUsage } from '../services/usage.ts'
 
 const dirs: string[] = []
 afterAll(() => {
@@ -33,7 +34,7 @@ function makeApp() {
   const app = createApp({
     db,
     jwtSecret: 'test-secret',
-    sweepRunnerFactory: () => async () => ({ escalated: false }),
+    sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
   })
   return { db, app }
 }
@@ -106,7 +107,7 @@ describe('createApp', () => {
         verifyCalls.push(req.headers.get('authorization') ?? '')
         return req.headers.get('authorization') === 'Bearer custom' ? { sub: 'custom-user' } : null
       },
-      sweepRunnerFactory: () => async () => ({ escalated: false }),
+      sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
     })
     const res = await mcpRequest(app, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, 'Bearer custom')
     expect(res.status).toBe(200)
@@ -136,7 +137,7 @@ describe('createApp cronSchedule', () => {
     createApp({
       db,
       jwtSecret: 'secret',
-      sweepRunnerFactory: () => async () => ({ escalated: false }),
+      sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
       scheduler: {
         apply: () => {},
         clear: () => {},
@@ -154,7 +155,7 @@ describe('createApp cronSchedule', () => {
       createApp({
         db,
         jwtSecret: 'secret',
-        sweepRunnerFactory: () => async () => ({ escalated: false }),
+        sweepRunnerFactory: () => async () => ({ escalated: false, usage: createSweepUsage() }),
         cronSchedule: '0 9 * * 1',
       }),
     ).not.toThrow()
