@@ -179,6 +179,7 @@ service design stands alone.
 | `RISK_JWT_SECRET` | `server.ts` | HMAC secret for bearer JWT verification |
 | `RISK_CRON_SCHEDULE` | both entries | global cron schedule for sweeps (UTC); stdio sessions scope it to their lifetime |
 | `RISK_ALLOWED_HOSTS` | `server.ts` | comma-separated hostnames for DNS-rebinding protection |
+| `RISK_TRIAGE_THRESHOLD` | both entries | Gate 1 escalation cutoff on the triage noul (default `0.5`) |
 | `RISK_ISSUER_URL` | `server.ts` | advertised authorization server for OAuth clients |
 | `OPENROUTER_API_KEY` | both | OpenRouter API key for the sweep model |
 | `YDC_API_KEY` | both | You.com API key (hosted MCP server auth) |

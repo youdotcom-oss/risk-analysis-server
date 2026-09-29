@@ -38,8 +38,13 @@ Paste one of these into your client after connecting:
 
 The tool descriptions carry the protocol (start → poll until
 `completed`/`failed`); expect ~2–3 minutes. The completed outcome includes
+The tool descriptions carry the protocol (start → poll until
+`completed`/`failed`); expect ~2–3 minutes. The completed outcome includes
 `knowledgeHits` — the count of licensed knowledge facts that reached the
-briefing — so you can verify knowledge influenced the result. Every Stage-3 search runs
+briefing — plus `threatProbability` (the raw triage noul behind the
+escalation decision) and `usage` (per-sweep You.com call and Jev token
+counts), so you can verify knowledge and provider cost influenced the
+result. Every Stage-3 search runs
 with `knowledge: "core"`: fact-shaped queries (prices, rates, revenues,
 weather) return licensed answers in `results.knowledge` (Fiscal.ai, S&P
 Global, BLS, EIA, AccuWeather) that flow into the briefing **with
@@ -125,8 +130,8 @@ All payloads are budget-capped; results persist in `sweep_tasks` and
 ```mermaid
 flowchart TD
   P["Profile"] --> S1["STAGE 1 · TRIAGE<br/>You.com search (highlights)<br/>Jev noul: threat probability"]
-  S1 -->|"&lt; 0.50"| CLEAN["persist low-severity<br/>clean-sweep report · STOP"]
-  S1 -->|"≥ 0.50"| S2["STAGE 2 · QUERY PROPOSAL<br/>Vercel AI SDK generateText<br/>qwen + you-search tool, ≤5 steps"]
+  S1 -->|"&lt; threshold<br/>(default 0.50)"| CLEAN["persist low-severity<br/>clean-sweep report · STOP"]
+  S1 -->|"≥ threshold"| S2["STAGE 2 · QUERY PROPOSAL<br/>Vercel AI SDK generateText<br/>qwen + you-search tool, ≤5 steps"]
   S2 --> G2["Jev noul gate inside the tool:<br/>query must be geospatially precise —<br/>rejected queries return re-propose hints"]
   G2 --> S3["STAGE 3 · RETRIEVAL + SCORING<br/>code-invoked you-search per query<br/>knowledge=“core” → licensed facts<br/>(Fiscal.ai, BLS, EIA, FRED, AccuWeather)<br/>each with attribution + asOf"]
   S3 --> G3["Jev score 0–2 per result<br/>vs the profile's triggers<br/>+1 provenance boost for knowledge"]
@@ -171,6 +176,10 @@ Three API keys are required for sweeps: `YDC_API_KEY` (You.com search),
 `qwen/qwen3.8-27b` — override with `RISK_MODEL`). The server starts and
 serves without them; missing keys are named in the startup warnings and
 sweeps fail with the specific auth error.
+
+`RISK_TRIAGE_THRESHOLD` (default `0.5`) sets the Gate 1 escalation cutoff:
+sweeps escalate only when the triage noul reaches it. Invalid values fail
+loudly at startup.
 
 ## License
 

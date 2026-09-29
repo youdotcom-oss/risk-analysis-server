@@ -27,9 +27,13 @@ The server exposes five tools. Work them in this order.
 2. **Poll:** call `trigger_manual_sweep` again with `task_id` every ~20
    seconds. While running: `{ task_id, status: "working", next: ... }`.
    When done: `{ status: "completed", escalated, severity, reportId,
-   knowledgeHits }` (or an error result with the failure reason).
+   threatProbability, usage, knowledgeHits }` (or an error result with the
+   failure reason).
    `knowledgeHits` counts licensed knowledge facts that reached the
    briefing — 0 is a valid result for news-shaped profiles.
+   `threatProbability` is the raw triage noul behind the escalation
+   decision; `usage` tallies the sweep's provider footprint (You.com
+   search/contents calls, Jev tokens).
 3. **Read the report even when not escalated.** Below-threshold sweeps
    still persist a low-severity clean-sweep report (signals reviewed,
    triage score) — a report isn't always for action, sometimes it
