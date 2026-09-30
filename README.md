@@ -34,7 +34,10 @@ Paste one of these into your client after connecting:
 
 1. > Create a risk profile "PNW data center buildout" watching Oregon, Washington, and California with these triggers: data center moratoriums and permitting pauses, power grid capacity constraints, electricity price today. Then run a manual sweep for it and summarize the report when done — note whether the report cites a live electricity price.
 2. > Create a risk profile "US AI lab operations" watching Taiwan and the United States with these triggers: TSMC revenue latest quarter, chip export policy changes, electricity price today, interest rate today. Then run a manual sweep for it and summarize the report when done.
-3. > Create a risk profile "Gulf AI infrastructure" watching Saudi Arabia with these triggers: crude oil price today, weather in Riyadh, Gulf shipping and infrastructure security, chip export policy changes. Then run a manual sweep for it and summarize the report when done.
+3. > Create a risk profile "Arabian Gulf AI infrastructure" watching Saudi Arabia with these triggers: crude oil price today, weather in Riyadh, Gulf shipping and infrastructure security, chip export policy changes. Then run a manual sweep for it and summarize the report when done.
+4. > Create a risk profile "Gulf AI infrastructure" watching the Texas Gulf Coast and Louisiana with these triggers: permitting delay, gas turbine shortage, grid interconnection queue. Then run a manual sweep for it and summarize the report when done.
+
+Example 4 reproduces the Gulf profile from the article's measured runs — paste it if you are following along with a write-up that used these profiles (and note it draws few licensed facts: news-shaped triggers like these are exactly the case where knowledge hits can be zero on a critical day).
 
 The tool descriptions carry the protocol (start → poll until
 `completed`/`failed`); expect ~2–3 minutes. The completed outcome includes
