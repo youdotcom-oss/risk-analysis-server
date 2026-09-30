@@ -38,8 +38,6 @@ Paste one of these into your client after connecting:
 
 The tool descriptions carry the protocol (start → poll until
 `completed`/`failed`); expect ~2–3 minutes. The completed outcome includes
-The tool descriptions carry the protocol (start → poll until
-`completed`/`failed`); expect ~2–3 minutes. The completed outcome includes
 `knowledgeHits` — the count of licensed knowledge facts that reached the
 briefing — plus `threatProbability` (the raw triage noul behind the
 escalation decision) and `usage` (per-sweep You.com call and Jev token
