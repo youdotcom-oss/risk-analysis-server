@@ -33,14 +33,17 @@ The server exposes five tools. Work them in this order.
    briefing — 0 is a valid result for news-shaped profiles.
    `threatProbability` is the raw triage noul behind the escalation
    decision; `usage` tallies the sweep's provider footprint (You.com
-   search/contents calls, Jev tokens).
+   search/contents calls, judgment tokens — Jev by default, or the sweep
+   model's own JSON answers when `RISK_JUDGE=qwen`, which also tally a
+   `judgeMalformed` parse-failure count).
 3. **Read the report even when not escalated.** Below-threshold sweeps
    still persist a low-severity clean-sweep report (signals reviewed,
    triage score) — a report isn't always for action, sometimes it
    documents inaction. Summarize it the same way via `get_risk_report`.
 
 Typical duration is 2-3 minutes (agentic search loop + judgment gates +
-cloud-model synthesis). Never assume a timeout means failure — the sweep
+cloud-model synthesis; the `RISK_JUDGE=qwen` ablation arm runs longer,
+7-12 minutes). Never assume a timeout means failure — the sweep
 keeps running server-side; keep polling.
 
 ## Reading the report
